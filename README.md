@@ -9,4 +9,4 @@ Bachelor thesis for Chalmers university of Technology for A procedural game base
 - [Doodle (upcoming weeks)](#)
 
 # Meeting protocols
-[2019-01-23](/Documents/23_1 Första möte.pdf)
+[2019-01-23](/Documents/01-23_First-meeting.pdf)
