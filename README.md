@@ -7,6 +7,7 @@
 - [Slack](https://kandidatarbet-y4s5202.slack.com/messages/CFK63AH5W/)
 - [Trello](#)
 - Doodle: [v4](https://doodle.com/poll/k4289357cr4cykpr)
+- Doodle: [v5](https://doodle.com/poll/vsz9zu8kkauynk9x)
 
 # Meeting protocols
 - [2019-01-23](/Documents/01-23_First-meeting.pdf)
