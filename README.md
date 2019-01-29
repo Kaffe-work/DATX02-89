@@ -13,6 +13,7 @@
 - [Here](https://docs.google.com/document/d/1tQaWQDXHAB5ZSZGx_EbKx2xnDXs33ADtJMPgaTgyXlQ/edit?usp=sharing)
 
 ## Meeting protocols
+- [2019-01-29](/Documents/meetings/01-29.pdf)
 - [2019-01-23](/Documents/meetings/01-23_First-meeting.pdf)
 
 ## Logs
