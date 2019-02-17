@@ -1,25 +1,31 @@
-# DATX02-89
-[A procedural game based on real-time flocking behaviour](http://www.chalmers.se/sv/institutioner/cse/utbildning/Grundutbildning/kandidatprojekt/Sidor/DATX02_19_37.aspx), a bachelor thesis at Chalmers University of Technology and Gothenburg University.
+# BoidSim
 
-# Links
-- [Availability](https://docs.google.com/spreadsheets/d/1ExV9KPqGFBE2SrHFRXhTdMKQxm385xNl5K7VHqrpJxA/edit#gid=0)
-- [Canvas](https://chalmers.instructure.com/courses/125230000000003735)
-- [Report](https://www.overleaf.com/project/5c47881ebbebf743f93ff91a)
-- [Slack](https://kandidatarbet-y4s5202.slack.com/messages/CFK63AH5W/)
-- [Trello](https://trello.com/b/MoMZlH1k/flocken)
-- [Drive](https://drive.google.com/open?id=1npq3x2hvHcMqF-z5_mloKlIh0rlCLyEl)
+BoidSim is a OpenGL application simulating emergent behaviour of independent agents. In particular, it simulates flocking behaviour in groups of boids (read birds) and is based on [Reynolds Model](https://www.red3d.com/cwr/papers/1987/boids.html).
 
-# Documents
-## Meeting protocols
-- [2019-01-29](/Documents/meetings/01-29.pdf)
-- [2019-01-23](/Documents/meetings/01-23_First-meeting.pdf)
+The idea is to achieve complex group behaviours from simple rules for each agent. Below an example is shown (no rules has been implemented for the agents).
+![](examples/norules.gif)
 
-## Diary
-- [Here](https://docs.google.com/document/d/1tQaWQDXHAB5ZSZGx_EbKx2xnDXs33ADtJMPgaTgyXlQ/edit?usp=sharing)
+## Dependencies
 
-## Contribution report
-- [Here](https://docs.google.com/document/d/1uJ8abxZQrVFnyXVo8-0TA_donXO8xLlEkwcHQ3O2aw8/edit?usp=sharing)
+- [GLFW](https://www.glfw.org/): for creating windows and retrieving input.
+- [GLAD](https://glad.dav1d.de/): for support across different platforms.
+- [GLM](https://glm.g-truc.net/0.9.9/index.html): for vector and matrix transformations etc.
 
-## Logs
-- [Week 1](/Documents/logs/Jan_21-27)
-- [Week 2](#)
+## Installation
+
+Windows:
+
+You will need the dependencies mentioned above to run the project.
+
+1. Inside solutions directory (BoidSim) create folder "Dependencies"
+2. Inside "Dependencies", create folder "include" and "lib-vc2015"
+3. Copy include folders (GLAD, GLFW, GLM, KHR) to include folder
+4. Copy "glfw3.lib" to "lib-vc2015"
+
+- [Guide to get the dependency files](https://www.youtube.com/watch?v=k9LDF016_1A) (GLM is not mentioned here)
+
+
+## Release History
+
+* 0.0.1
+    * Randomly spawned triangles with random velocity (no rules implemented)
