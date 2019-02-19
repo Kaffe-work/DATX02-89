@@ -2,7 +2,7 @@
 
 BoidSim is a OpenGL application simulating emergent behaviour of independent agents. In particular, it simulates flocking behaviour in groups of boids (read birds) and is based on [Reynolds Model](https://www.red3d.com/cwr/papers/1987/boids.html).
 
-The idea is to achieve complex group behaviours from simple rules for each agent. Below an example is shown (no rules has been implemented for the agents).
+The idea is to achieve complex group behaviours from simple rules for each agent. Below an example is shown (no rules have been implemented for the agents as of yet).
 ![](examples/norules.gif)
 
 ## Dependencies
