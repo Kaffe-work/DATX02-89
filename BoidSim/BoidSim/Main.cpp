@@ -112,7 +112,7 @@ int main()
 			glm::mat4 model = glm::mat4(1.0f);
 			// rotate boid to face correct location (doesn't work)
 			float angle = acos(dot(glm::vec3(0.0f, 1.0f, 0.0f), normalize(b.velocity)));
-			if(angle > 1) model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
+			model = glm::rotate(model, glm::radians(angle), glm::vec3(0.0f, 0.0f, 1.0f));
 			// move the model to boid location
 			model = glm::translate(model, b.position);
 			// each boid gets its unique uniform model (applied in vertex shader)

@@ -1,37 +1,8 @@
-# Dependencies
-BoidSim/Dependencies
-BoidSim/glad.c
-BoidSim/BoidSim/glad.c
+# exclude everything in BoidSim
+BoidSim/*
 
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
+# except 4 files
+!BoidSim/BoidSim/frag.shader
+!BoidSim/BoidSim/vert.shader
+!BoidSim/BoidSim/Shader.h
+!BoidSim/BoidSim/Main.cpp
