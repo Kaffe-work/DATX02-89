@@ -1,11 +1,12 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <Shader.h>
 #include <iostream>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <vector>
+#include <Shader.h>
+#include <list>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -23,8 +24,38 @@ struct Boid {
 };
 
 // How many boids on screen
-int nr_boids = 200;
+int nrBoids = 12;
 std::vector<Boid> boids;
+int maxNeighbours = 5;
+
+void updateBoids(Boid* b) { // Flocking rules are implemented here
+
+	/*Calculate neighbours*/
+	std::vector<Boid> nb; // Vector = list
+	for (Boid a : boids) {
+		if (std::size(nb) >= maxNeighbours) {
+			break;
+		}
+		else if ((a.position != b->position) && distance(a.position, b->position) < 3.0f)
+		{
+			nb.push_back(a); // Add to list
+		}
+	}
+
+	if (std::size(nb) > 0) {
+		/*Alignment = Velocity Matching*/
+		//Sum the velocities of the neighbours and average them.
+		glm::vec3 alignment = glm::vec3(0.0);
+		for (int i = 0; i < std::size(nb); i++) { //
+			alignment = alignment + nb.at(i).velocity;
+		}
+		alignment = alignment * (1.0f / std::size(nb)); // 
+
+
+		/*Update Velocity*/
+		b->velocity = alignment;
+	}
+}
 
 int main()
 {
@@ -54,11 +85,11 @@ int main()
 
 	// build and compile shader program
 	Shader shader("vert.shader", "frag.shader");
-	
+
 	// create the boids (allocate space and randomize position/velocity by calling constructor)
-	for (int i = 0; i < nr_boids; ++i)
+	for (int i = 0; i < nrBoids; ++i)
 		boids.push_back(Boid());
-	
+
 	// the model of a boid (just a triangle, three vertices), same for all boids ofc
 	float boidModel[] = {
 		-1.0f, -1.0f, 0.0f,
@@ -83,10 +114,10 @@ int main()
 	{
 		// if got input, processed here
 		processInput(window);
-		
+
 		// use the shader instantiated earlier
 		shader.use();
-		
+
 		// create some matrices for our coordinate system
 		glm::mat4 view = glm::mat4(1.0f);
 		// view: zoom out camera
@@ -104,20 +135,22 @@ int main()
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		glBindVertexArray(VAO);
-		
+
 		// move each boid to current pos, update pos given velocity
 		for (Boid& b : boids)
 		{
+			updateBoids(&b);
+
 			b.position += 0.01f * b.velocity;
 			glm::mat4 model = glm::mat4(1.0f);
 			// rotate boid to face correct location (doesn't work)
 			float angle = acos(dot(glm::vec3(0.0f, 1.0f, 0.0f), normalize(b.velocity)));
-			model = glm::rotate(model, glm::radians(angle), glm::vec3(0.0f, 0.0f, 1.0f));
+			if (angle > 1) model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
 			// move the model to boid location
 			model = glm::translate(model, b.position);
 			// each boid gets its unique uniform model (applied in vertex shader)
 			shader.setMatrix("model", model);
-			
+
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, sizeof(boidModel) / (sizeof(float) * 3));
 		}
 		// render the triangle
