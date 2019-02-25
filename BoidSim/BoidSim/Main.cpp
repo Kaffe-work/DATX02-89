@@ -26,19 +26,19 @@ struct Boid {
 // How many boids on screen
 int nrBoids = 12;
 std::vector<Boid> boids;
-int maxNeighbours = 5;
+unsigned int maxNeighbours = 5;
 
-void updateBoids(Boid* b) { // Flocking rules are implemented here
+void updateBoids(Boid & b) { // Flocking rules are implemented here
 
 	/*Calculate neighbours*/
-	std::vector<Boid> nb; // Vector = list
+	std::vector<Boid> nb;
 	for (Boid a : boids) {
 		if (std::size(nb) >= maxNeighbours) {
 			break;
 		}
-		else if ((a.position != b->position) && distance(a.position, b->position) < 3.0f)
+		else if ((a.position != b.position) && distance(a.position, b.position) < 3.0f)
 		{
-			nb.push_back(a); // Add to list
+			nb.push_back(a);
 		}
 	}
 
@@ -46,14 +46,14 @@ void updateBoids(Boid* b) { // Flocking rules are implemented here
 		/*Alignment = Velocity Matching*/
 		//Sum the velocities of the neighbours and average them.
 		glm::vec3 alignment = glm::vec3(0.0);
-		for (int i = 0; i < std::size(nb); i++) { //
+		for (unsigned int i = 0; i < std::size(nb); i++) { 
 			alignment = alignment + nb.at(i).velocity;
 		}
-		alignment = alignment * (1.0f / std::size(nb)); // 
+		alignment = alignment * (1.0f / std::size(nb));
 
 
 		/*Update Velocity*/
-		b->velocity = alignment;
+		b.velocity = alignment;
 	}
 }
 
@@ -139,7 +139,7 @@ int main()
 		// move each boid to current pos, update pos given velocity
 		for (Boid& b : boids)
 		{
-			updateBoids(&b);
+			updateBoids(b);
 
 			b.position += 0.01f * b.velocity;
 			glm::mat4 model = glm::mat4(1.0f);
