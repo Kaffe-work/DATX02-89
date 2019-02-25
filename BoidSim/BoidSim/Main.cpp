@@ -20,41 +20,52 @@ struct Boid {
 	glm::vec3 position, velocity;
 
 	Boid()
-		: position(rand() % 21 - 10, rand() % 21 - 10, 0.0f), velocity(rand() % 21 - 10, rand() % 21 - 10, 0.0f) { }
+		: position(rand() % 61 - 30, rand() % 61 - 30, 0.0f), velocity(rand() % 21 - 10, rand() % 21 - 10, 0.0f) { }
 };
 
 // How many boids on screen
-int nrBoids = 12;
+int nrBoids = 40;
 std::vector<Boid> boids;
-unsigned int maxNeighbours = 5;
 
 void updateBoids(Boid & b) { // Flocking rules are implemented here
 
 	/*Calculate neighbours*/
 	std::vector<Boid> nb;
 	for (Boid a : boids) {
-		if (std::size(nb) >= maxNeighbours) {
-			break;
-		}
-		else if ((a.position != b.position) && distance(a.position, b.position) < 3.0f)
+		if ((a.position != b.position) && distance(a.position, b.position) < 9.0f)
 		{
 			nb.push_back(a);
 		}
 	}
 
-	if (std::size(nb) > 0) {
-		/*Alignment = Velocity Matching*/
-		//Sum the velocities of the neighbours and average them.
-		glm::vec3 alignment = glm::vec3(0.0);
-		for (unsigned int i = 0; i < std::size(nb); i++) { 
-			alignment = alignment + nb.at(i).velocity;
-		}
-		alignment = alignment * (1.0f / std::size(nb));
+	/*Alignment = Velocity Matching*/
+	//Sum the velocities of the neighbours and this boid and average them.
 
+	/*Separation = Collision Avoidance*/
+	//Sum the vectors from all neighbours to this boid. 
 
-		/*Update Velocity*/
-		b.velocity = alignment;
+	/*Cohesion - Flock Centering*/
+	//Sum the positions of the neighbours and average them, then subtract this boids position
+	
+	glm::vec3 alignment = b.velocity;
+	glm::vec3 separation = glm::vec3(0.0);
+	glm::vec3 cohesion = glm::vec3(0.0);
+
+	if (std::size(nb) == 0) { // If there are no neighbours, dont change speed
+		return;
 	}
+
+	for (Boid neighbour : nb) {
+		alignment += neighbour.velocity;
+		separation += (b.position - neighbour.position) * 5.0f/distance(b.position, neighbour.position);
+		cohesion += neighbour.position;
+	}
+	alignment = alignment * (1.0f / (std::size(nb) + 1));
+	cohesion = cohesion * (1.0f / std::size(nb)) - b.position;
+	separation = separation * (1.0f / std::size(nb));
+
+	/*Update Velocity*/
+	b.velocity = alignment + separation + 1.2f*cohesion;
 }
 
 int main()
@@ -141,11 +152,11 @@ int main()
 		{
 			updateBoids(b);
 
-			b.position += 0.01f * b.velocity;
+			b.position += 0.001f * b.velocity;
 			glm::mat4 model = glm::mat4(1.0f);
 			// rotate boid to face correct location (doesn't work)
 			float angle = acos(dot(glm::vec3(0.0f, 1.0f, 0.0f), normalize(b.velocity)));
-			if (angle > 1) model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
+			model = glm::rotate(model, glm::radians(angle), glm::vec3(0.0f, 0.0f, 1.0f));
 			// move the model to boid location
 			model = glm::translate(model, b.position);
 			// each boid gets its unique uniform model (applied in vertex shader)
