@@ -1,11 +1,14 @@
-#include <glad/glad.h>
+// #include "OpenGL/gl.h"
+#include "glad/glad.h"
 #include <GLFW/glfw3.h>
-#include <Shader.h>
+#include "Shader.h"
 #include <iostream>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <vector>
+#include <map>
+
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -23,8 +26,101 @@ struct Boid {
 };
 
 // How many boids on screen
-int nr_boids = 200;
+int nr_boids = 10;
 std::vector<Boid> boids;
+
+/* SPATIAL HASHING STUFF */
+
+// Grid related stuff
+#define CELL_SIZE 100.0f // Boids currently have a width of 2.0 (?)
+const int HASH_TABLE_SIZE = 10;
+
+// node structure for single linked list
+template<typename T>
+struct node{
+   T value;
+   node<T>* next;
+   node() : value(NULL), next(NULL) {}
+   node(T t) : next(NULL){
+	   value = t;
+   } 
+};
+
+// HashTable with all the boids
+std::vector<node<Boid*> > cellBuckets(HASH_TABLE_SIZE, node<Boid*>()); // Initialize to NULL
+
+template<typename T>
+void insertNode(std::vector<node<T> > &table, int index, T value){
+	if(index >= table.size()) {
+		std::cout << "Hashtable: Index out of bounds";
+		return;
+	}
+	node<T>* n = &table[index];
+	if(n->value == NULL){ // Bucket is empty
+		table[index] = node<T>(value);
+		return;
+	}
+	while(n->next != NULL){ // Some nodes already in bucket
+		n = n->next;
+	}
+	n->next = new node<T>(value);
+}
+
+template<typename T>
+void clearHashTable(std::vector<node<T> > &table){
+	for(node<T>& n : table){
+		node<T>* next;
+		node<T>* current = n.next;
+		while (current != NULL){
+			next = current->next;
+			current->value = NULL;
+			delete current;
+			current = next;
+		} 
+		n.value = NULL;
+		n.next = NULL; // not strictly needed, but can help avoid future bugs
+	}
+}
+
+template <typename T>
+void printBuckets(std::vector<node<T> > &buckets){
+	for(int i = 0; i < buckets.size(); i++){
+		node<T>* n = &buckets[i];
+		if(n->value == NULL) continue; // skip empty buckets
+		std::cout << std::endl << "Bucket nr " << i << ": ";
+		while(n != NULL){
+			std::cout << "*";
+			n = n->next;
+		}
+	}
+}
+
+
+inline glm::vec3 getCell(glm::vec3 pos){
+	return pos * (1.0f/CELL_SIZE);  
+}
+
+int getCellHash(glm::vec3 cell){
+	const glm::vec3 primes = glm::vec3(402653189, 805306457, 1610612741); // one prime per coordinate
+	cell = glm::floor(cell) * primes;
+	int hash = ((int)cell.x ^ (int)cell.y ^ (int)cell.z) % HASH_TABLE_SIZE; 
+	return std::abs(hash); 
+}
+
+typedef node<Boid*> BoidNode; // More handy way of refering to the nodes?
+
+BoidNode* getNeighbours(Boid& b){
+	int index = getCellHash(getCell(b.position));
+	return &cellBuckets[index];
+}
+
+void putInHashTable(Boid& b){
+	glm::vec3 cell = getCell(b.position); // which cell is the boid in
+	int hash = getCellHash(cell); // hash the cell position
+	insertNode(cellBuckets, hash, &b); // wrap the boid in a node and put in hash table
+}
+
+
 
 int main()
 {
@@ -33,6 +129,7 @@ int main()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Needed for OS X
 
 	// glfw: window creation
 	GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", NULL, NULL);
@@ -76,9 +173,10 @@ int main()
 
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
-
+	
 	// render loop
 	// -----------
+
 	while (!glfwWindowShouldClose(window))
 	{
 		// if got input, processed here
@@ -104,22 +202,23 @@ int main()
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		glBindVertexArray(VAO);
-		
+
 		// move each boid to current pos, update pos given velocity
 		for (Boid& b : boids)
 		{
-			b.position += 0.01f * b.velocity;
+			b.position += 0.005f * b.velocity;
 			glm::mat4 model = glm::mat4(1.0f);
 			// rotate boid to face correct location (doesn't work)
-			float angle = acos(dot(glm::vec3(0.0f, 1.0f, 0.0f), normalize(b.velocity)));
-			if(angle > 1) model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
+			//float angle = acos(dot(glm::vec3(0.0f, 1.0f, 0.0f), normalize(b.velocity)));
+			//if(angle > 1) model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
 			// move the model to boid location
 			model = glm::translate(model, b.position);
 			// each boid gets its unique uniform model (applied in vertex shader)
 			shader.setMatrix("model", model);
-			
+
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, sizeof(boidModel) / (sizeof(float) * 3));
 		}
+
 		// render the triangle
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
