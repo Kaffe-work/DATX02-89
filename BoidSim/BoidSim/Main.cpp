@@ -1,11 +1,12 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <Shader.h>
 #include <iostream>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <vector>
+#include <Shader.h>
+#include <list>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -19,12 +20,53 @@ struct Boid {
 	glm::vec3 position, velocity;
 
 	Boid()
-		: position(rand() % 21 - 10, rand() % 21 - 10, 0.0f), velocity(rand() % 21 - 10, rand() % 21 - 10, 0.0f) { }
+		: position(rand() % 61 - 30, rand() % 61 - 30, 0.0f), velocity(rand() % 21 - 10, rand() % 21 - 10, 0.0f) { }
 };
 
 // How many boids on screen
-int nr_boids = 200;
+int nrBoids = 40;
 std::vector<Boid> boids;
+
+void updateBoids(Boid & b) { // Flocking rules are implemented here
+
+	/*Calculate neighbours*/
+	std::vector<Boid> nb;
+	for (Boid a : boids) {
+		if ((a.position != b.position) && distance(a.position, b.position) < 9.0f)
+		{
+			nb.push_back(a);
+		}
+	}
+
+	/*Alignment = Velocity Matching*/
+	//Sum the velocities of the neighbours and this boid and average them.
+
+	/*Separation = Collision Avoidance*/
+	//Sum the vectors from all neighbours to this boid. 
+
+	/*Cohesion - Flock Centering*/
+	//Sum the positions of the neighbours and average them, then subtract this boids position
+	
+	glm::vec3 alignment = b.velocity;
+	glm::vec3 separation = glm::vec3(0.0);
+	glm::vec3 cohesion = glm::vec3(0.0);
+
+	if (std::size(nb) == 0) { // If there are no neighbours, dont change speed
+		return;
+	}
+
+	for (Boid neighbour : nb) {
+		alignment += neighbour.velocity;
+		separation += (b.position - neighbour.position) * 5.0f/distance(b.position, neighbour.position);
+		cohesion += neighbour.position;
+	}
+	alignment = alignment * (1.0f / (std::size(nb) + 1));
+	cohesion = cohesion * (1.0f / std::size(nb)) - b.position;
+	separation = separation * (1.0f / std::size(nb));
+
+	/*Update Velocity*/
+	b.velocity = alignment + separation + 1.2f*cohesion;
+}
 
 int main()
 {
@@ -54,11 +96,11 @@ int main()
 
 	// build and compile shader program
 	Shader shader("vert.shader", "frag.shader");
-	
+
 	// create the boids (allocate space and randomize position/velocity by calling constructor)
-	for (int i = 0; i < nr_boids; ++i)
+	for (int i = 0; i < nrBoids; ++i)
 		boids.push_back(Boid());
-	
+
 	// the model of a boid (just a triangle, three vertices), same for all boids ofc
 	float boidModel[] = {
 		-1.0f, -1.0f, 0.0f,
@@ -83,10 +125,10 @@ int main()
 	{
 		// if got input, processed here
 		processInput(window);
-		
+
 		// use the shader instantiated earlier
 		shader.use();
-		
+
 		// create some matrices for our coordinate system
 		glm::mat4 view = glm::mat4(1.0f);
 		// view: zoom out camera
@@ -104,11 +146,13 @@ int main()
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		glBindVertexArray(VAO);
-		
+
 		// move each boid to current pos, update pos given velocity
 		for (Boid& b : boids)
 		{
-			b.position += 0.01f * b.velocity;
+			updateBoids(b);
+
+			b.position += 0.001f * b.velocity;
 			glm::mat4 model = glm::mat4(1.0f);
 			// rotate boid to face correct location (doesn't work)
 			float angle = acos(dot(glm::vec3(0.0f, 1.0f, 0.0f), normalize(b.velocity)));
@@ -117,7 +161,7 @@ int main()
 			model = glm::translate(model, b.position);
 			// each boid gets its unique uniform model (applied in vertex shader)
 			shader.setMatrix("model", model);
-			
+
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, sizeof(boidModel) / (sizeof(float) * 3));
 		}
 		// render the triangle
