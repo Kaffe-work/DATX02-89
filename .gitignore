@@ -1,5 +1,6 @@
 # exclude everything in BoidSim
 BoidSim/*
+local/*
 
 # except 4 files
 !BoidSim/BoidSim/frag.shader
