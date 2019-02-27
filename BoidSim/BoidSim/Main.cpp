@@ -8,23 +8,28 @@
 #include <Shader.h>
 #include <list>
 
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
+double xpos, ypos; // cursor position
 
 // setup
-const unsigned int screenWidth = 1280;
-const unsigned int screenHeight = 720;
+const unsigned int screenWidth = 1280, screenHeight = 720;
+
+glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
+glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
+double yaw = 1.6f, pitch = 0.0f;
 
 // A boid has a position on screen and a velocity. Constructor creates random vec3 of both
 struct Boid {
 	glm::vec3 position, velocity;
 
 	Boid()
-		: position(rand() % 61 - 30, rand() % 61 - 30, 0.0f), velocity(rand() % 21 - 10, rand() % 21 - 10, 0.0f) { }
+		: position(rand() % 161 - 80, rand() % 61 - 30, rand() % 61 - 30), velocity(rand() % 61 - 30, rand() % 61 - 30, rand() % 61 - 30) { }
 };
 
 // How many boids on screen
-int nrBoids = 40;
+int nrBoids = 100;
 std::vector<Boid> boids;
 
 void updateBoids(Boid & b) { // Flocking rules are implemented here
@@ -32,7 +37,7 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	/*Calculate neighbours*/
 	std::vector<Boid> nb;
 	for (Boid a : boids) {
-		if ((a.position != b.position) && distance(a.position, b.position) < 9.0f)
+		if ((a.position != b.position) && distance(a.position, b.position) < 10.0f)
 		{
 			nb.push_back(a);
 		}
@@ -131,11 +136,14 @@ int main()
 
 		// create some matrices for our coordinate system
 		glm::mat4 view = glm::mat4(1.0f);
-		// view: zoom out camera
-		view = glm::translate(view, glm::vec3(0.0f, 0.0f, -120.0f));
+		// update camera direction, rotation
+		cameraDir = glm::vec3(cos(pitch)*cos(yaw), sin(-pitch), cos(pitch)*sin(yaw));
+		normalize(cameraDir);
+		// calculate view-matrix based on cameraDir and cameraPos
+		view = glm::lookAt(cameraPos, cameraPos + cameraDir, glm::vec3(0.0f, 1.0f, 0.0f));
 		glm::mat4 projection;
 		// projection: define FOV, aspect ratio and view frustum (near & far plane)
-		projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 150.0f);
+		projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 1000.0f);
 
 		// attach the specified matrices to our shader as uniforms (send them to vertex shader)
 		shader.setMatrix("view", view);
@@ -152,7 +160,7 @@ int main()
 		{
 			updateBoids(b);
 
-			b.position += 0.001f * b.velocity;
+			b.position += 0.01f * b.velocity;
 			glm::mat4 model = glm::mat4(1.0f);
 			// rotate boid to face correct location (doesn't work)
 			float angle = acos(dot(glm::vec3(0.0f, 1.0f, 0.0f), normalize(b.velocity)));
@@ -183,6 +191,36 @@ int main()
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 void processInput(GLFWwindow *window)
 {
+	double xpos_old = xpos;
+	double ypos_old = ypos;
+	glfwGetCursorPos(window, &xpos, &ypos);
+	double deltaX = xpos - xpos_old;
+	double deltaY = ypos - ypos_old;
+
+	// If left mouse click is depressed, modify yaw and pitch
+	int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+	if (state == GLFW_PRESS) {
+		yaw += deltaX * 0.002;
+		pitch = fmin(pitch + deltaY * 0.002, 0.3f); // max 89 grader
+	}
+
+	state = glfwGetKey(window, GLFW_KEY_W);
+	if (state == GLFW_PRESS) {
+		cameraPos += cameraDir * 3.0f;
+	}
+	state = glfwGetKey(window, GLFW_KEY_S);
+	if (state == GLFW_PRESS) {
+		cameraPos -= cameraDir * 3.0f;
+	}
+	state = glfwGetKey(window, GLFW_KEY_A);
+	if (state == GLFW_PRESS) {
+		cameraPos -= cross(cameraDir, glm::vec3(0.0f, 1.0f, 0.0f)) * 3.0f;
+	}
+	state = glfwGetKey(window, GLFW_KEY_D);
+	if (state == GLFW_PRESS) {
+		cameraPos += cross(cameraDir, glm::vec3(0.0f, 1.0f, 0.0f)) * 3.0f;
+	}
+
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
 }
