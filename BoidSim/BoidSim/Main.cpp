@@ -10,6 +10,7 @@
 #include <map>
 
 
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 
@@ -26,80 +27,79 @@ struct Boid {
 };
 
 // How many boids on screen
-int nr_boids = 10;
+int nr_boids = 50;
 std::vector<Boid> boids;
 
 /* SPATIAL HASHING STUFF */
 
 // Grid related stuff
-#define CELL_SIZE 100.0f // Boids currently have a width of 2.0 (?)
-const int HASH_TABLE_SIZE = 10;
+#define CELL_SIZE 10.0f // Boids currently have a width of 2.0 (?)
+const int HASH_TABLE_SIZE = 100;
 
-// node structure for single linked list
-template<typename T>
-struct node{
-   T value;
-   node<T>* next;
-   node() : value(NULL), next(NULL) {}
-   node(T t) : next(NULL){
-	   value = t;
-   } 
+struct BoidBucket{
+	Boid *head, *tail;
+	BoidBucket() : head(NULL), tail(NULL) {}
+    BoidBucket(Boid* b){
+	   head = b;
+       tail = b;
+    }
 };
 
 // HashTable with all the boids
-std::vector<node<Boid*> > cellBuckets(HASH_TABLE_SIZE, node<Boid*>()); // Initialize to NULL
+std::vector<BoidBucket> cellBuckets(HASH_TABLE_SIZE, BoidBucket()); 
+// Table containing one (if any) cell neighbour for each boid 
+std::vector<Boid*> nextBoid(nr_boids, NULL);
 
-template<typename T>
-void insertNode(std::vector<node<T> > &table, int index, T value){
-	if(index >= table.size()) {
+// Helper function to convert a boids absolute address to it's offset in the vector containing all boids
+inline int absToOffset(Boid* b){
+    return ((long)b - (long)&boids[0])/sizeof(Boid); 
+} 
+
+// Put in the linked list for bucket with index
+void putInBucket(Boid& boid, int index){
+    if(index >= cellBuckets.size()) {
 		std::cout << "Hashtable: Index out of bounds";
 		return;
 	}
-	node<T>* n = &table[index];
-	if(n->value == NULL){ // Bucket is empty
-		table[index] = node<T>(value);
-		return;
-	}
-	while(n->next != NULL){ // Some nodes already in bucket
-		n = n->next;
-	}
-	n->next = new node<T>(value);
+    if(cellBuckets[index].head == NULL){ // Bucket is empty
+        cellBuckets[index] = BoidBucket(&boid);
+    } 
+    Boid* oldTail = cellBuckets[index].tail;
+    cellBuckets[index].tail = &boid;
+    int i = absToOffset(oldTail);// check offset from boids vector base (="index" of boid in vector)
+    nextBoid[i] = &boid; // the old tail boid now points to the new tail
 }
 
-template<typename T>
-void clearHashTable(std::vector<node<T> > &table){
-	for(node<T>& n : table){
-		node<T>* next;
-		node<T>* current = n.next;
-		while (current != NULL){
-			next = current->next;
-			current->value = NULL;
-			delete current;
-			current = next;
-		} 
-		n.value = NULL;
-		n.next = NULL; // not strictly needed, but can help avoid future bugs
-	}
+void clearHashTable(){
+    for(BoidBucket &b : cellBuckets){
+        b.head = NULL;
+        b.tail = NULL; // tail = NULL not strictly needed, only to prevent future bugs
+    }
 }
 
-template <typename T>
-void printBuckets(std::vector<node<T> > &buckets){
-	for(int i = 0; i < buckets.size(); i++){
-		node<T>* n = &buckets[i];
-		if(n->value == NULL) continue; // skip empty buckets
-		std::cout << std::endl << "Bucket nr " << i << ": ";
-		while(n != NULL){
-			std::cout << "*";
-			n = n->next;
-		}
-	}
+void printBuckets(){
+    for(int i = 0; i < cellBuckets.size(); i++){
+        if(cellBuckets[i].head == NULL) {
+            continue; // Empty bucket, don't print anything nothing
+        }
+		std::cout << std::endl << "Bucket nr " << i << ": " << absToOffset(cellBuckets[i].head);
+        Boid* tail = cellBuckets[i].tail;
+        Boid* current = cellBuckets[i].head;
+        do{
+            int j = absToOffset(current);
+            current = nextBoid[j];
+            std::cout << "->" << absToOffset(current);
+        }
+        while(current != tail);
+    }
+	std::cout << std::endl;
 }
-
 
 inline glm::vec3 getCell(glm::vec3 pos){
 	return pos * (1.0f/CELL_SIZE);  
 }
 
+// Computes the hash for a cell
 int getCellHash(glm::vec3 cell){
 	const glm::vec3 primes = glm::vec3(402653189, 805306457, 1610612741); // one prime per coordinate
 	cell = glm::floor(cell) * primes;
@@ -107,23 +107,16 @@ int getCellHash(glm::vec3 cell){
 	return std::abs(hash); 
 }
 
-typedef node<Boid*> BoidNode; // More handy way of refering to the nodes?
-
-BoidNode* getNeighbours(Boid& b){
-	int index = getCellHash(getCell(b.position));
-	return &cellBuckets[index];
-}
-
+// Puts boid b in the correct place in the hash table
 void putInHashTable(Boid& b){
-	glm::vec3 cell = getCell(b.position); // which cell is the boid in
-	int hash = getCellHash(cell); // hash the cell position
-	insertNode(cellBuckets, hash, &b); // wrap the boid in a node and put in hash table
+	glm::vec3 cell = getCell(b.position); // which cell is the boid currently in
+	int hashIndex = getCellHash(cell); // hash the cell position
+	putInBucket(b, hashIndex); // put in hash table at index hashIndex
 }
-
 
 
 int main()
-{
+{   
 	// glfw: initialize and configure
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -177,6 +170,8 @@ int main()
 	// render loop
 	// -----------
 
+    int frame = 0;
+    
 	while (!glfwWindowShouldClose(window))
 	{
 		// if got input, processed here
@@ -196,11 +191,10 @@ int main()
 		// attach the specified matrices to our shader as uniforms (send them to vertex shader)
 		shader.setMatrix("view", view);
 		shader.setMatrix("projection", projection);
-
+        shader.setVec3("ourColor", glm::vec3(0.0f));
 		// clear whatever was on screen last frame
 		glClearColor(0.90f, 0.95f, 0.96f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
-
 		glBindVertexArray(VAO);
 
 		// move each boid to current pos, update pos given velocity
@@ -215,9 +209,12 @@ int main()
 			model = glm::translate(model, b.position);
 			// each boid gets its unique uniform model (applied in vertex shader)
 			shader.setMatrix("model", model);
-
+            // std::cout << "putting in hashtable: " << &b;
+            putInHashTable(b);
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, sizeof(boidModel) / (sizeof(float) * 3));
 		}
+        printBuckets();
+		clearHashTable();
 
 		// render the triangle
 
@@ -225,6 +222,8 @@ int main()
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
+
+
 
 	// optional: de-allocate all resources once they've outlived their purpose:
 	glDeleteVertexArrays(1, &VAO);
