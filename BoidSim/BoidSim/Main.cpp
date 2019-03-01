@@ -55,7 +55,7 @@ inline int absToOffset(Boid* b){
     return ((long)b - (long)&boids[0])/sizeof(Boid); 
 } 
 
-// Put in the linked list for bucket with index
+// Put in the linked list for bucket with index 'index'
 void putInBucket(Boid& boid, int index){
     if(index >= cellBuckets.size()) {
 		std::cout << "Hashtable: Index out of bounds";
@@ -77,6 +77,7 @@ void clearHashTable(){
     }
 }
 
+// For debugging. Prints the contents of each bucket in the hashtable
 void printBuckets(){
     for(int i = 0; i < cellBuckets.size(); i++){
         if(cellBuckets[i].head == NULL) {
@@ -112,6 +113,32 @@ void putInHashTable(Boid& b){
 	glm::vec3 cell = getCell(b.position); // which cell is the boid currently in
 	int hashIndex = getCellHash(cell); // hash the cell position
 	putInBucket(b, hashIndex); // put in hash table at index hashIndex
+}
+
+std::vector<Boid*> getNeighbours(Boid& b){
+	// check all 3*3 neighbouring cells for boids
+	glm::vec3 centerCell = getCell(b.position); 
+	std::vector<Boid*> neighbours;
+	int boidIndex = absToOffset(&b);
+	for(int i= -1; i <= 1; i++){
+		for(int j= -1; j <= 1; j++){
+			for(int k= -1; k <= 1; k++){
+				glm::vec3 cellOffset = glm::vec3(i, j, k); // offset to neighbouring cells
+				int index = getCellHash(centerCell + cellOffset);
+				Boid* current = cellBuckets[index].head;
+				if (current == NULL) {
+					continue; // empty cell
+				}
+				Boid* tail = cellBuckets[index].tail;
+				do{
+					int l = absToOffset(current);
+					current = nextBoid[l];
+					neighbours.push_back(current);
+				} while(current != tail);
+			}
+		}
+	}
+	return neighbours;
 }
 
 
@@ -196,7 +223,6 @@ int main()
 		glClearColor(0.90f, 0.95f, 0.96f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 		glBindVertexArray(VAO);
-
 		// move each boid to current pos, update pos given velocity
 		for (Boid& b : boids)
 		{
@@ -213,7 +239,6 @@ int main()
             putInHashTable(b);
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, sizeof(boidModel) / (sizeof(float) * 3));
 		}
-        printBuckets();
 		clearHashTable();
 
 		// render the triangle
