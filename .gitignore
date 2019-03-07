@@ -1,6 +1,9 @@
+# exclude everything in BoidSim
+BoidSim/*
 
-BoidSim/.DS_Store
-BoidSim/.vs/.DS_Store
-BoidSim/.vs/BoidSim/.DS_Store
-BoidSim/BoidSim/.DS_Store
-BoidSim/BoidSim/Shader
+# except 4 files
+!BoidSim/BoidSim/frag.shader
+!BoidSim/BoidSim/vert.shader
+!BoidSim/BoidSim/Shader.h
+!BoidSim/BoidSim/Main.cpp
+!BoidSim/BoidSim/flat_hash_map.hpp
