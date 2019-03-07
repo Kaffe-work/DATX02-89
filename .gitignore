@@ -6,3 +6,4 @@ BoidSim/*
 !BoidSim/BoidSim/vert.shader
 !BoidSim/BoidSim/Shader.h
 !BoidSim/BoidSim/Main.cpp
+!BoidSim/BoidSim/flat_hash_map.hpp
