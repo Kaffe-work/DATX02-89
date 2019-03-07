@@ -8,7 +8,8 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <vector>
 #include <map>
-
+#include <glm/gtc/quaternion.hpp>
+#include "flat_hash_map.hpp"
 
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -23,30 +24,38 @@ struct Boid {
 	glm::vec3 position, velocity;
 
 	Boid()
-		: position(rand() % 21 - 10, rand() % 21 - 10, 0.0f), velocity(rand() % 21 - 10, rand() % 21 - 10, 0.0f) { }
+		: position(rand() % 81 - 40, rand() % 81 - 40, rand() % 81 - 40), velocity(rand() % 61 - 30, rand() % 61 - 30, rand() % 61 - 30) { }
 };
 
 // How many boids on screen
-int nr_boids = 50;
+int nr_boids = 500;
 std::vector<Boid> boids;
 
-/* SPATIAL HASHING STUFF */
+int frame = 0;
 
+/* SPATIAL HASHING STUFF */
+#include <tuple>
+using std::tuple;
+
+#define USE_SPATIAL_HASH // comment out this for the naive n^2 version
 // Grid related stuff
-#define CELL_SIZE 10.0f // Boids currently have a width of 2.0 (?)
-const int HASH_TABLE_SIZE = 100;
+const float CELL_SIZE = 10.0f; // this should be the same value as the boids scope
+const int HASH_TABLE_SIZE = 997;
 
 struct BoidBucket{
 	Boid *head, *tail;
 	BoidBucket() : head(NULL), tail(NULL) {}
     BoidBucket(Boid* b){
-	   head = b;
-       tail = b;
+	   head = tail = b;
     }
+	BoidBucket(Boid* a, Boid* b){
+		head = a;
+		tail = b;
+	}
 };
 
 // HashTable with all the boids
-std::vector<BoidBucket> cellBuckets(HASH_TABLE_SIZE, BoidBucket()); 
+ska::flat_hash_map<unsigned long, BoidBucket> cellBuckets = ska::flat_hash_map<unsigned long, BoidBucket>();
 // Table containing one (if any) cell neighbour for each boid 
 std::vector<Boid*> nextBoid(nr_boids, NULL);
 
@@ -55,90 +64,149 @@ inline int absToOffset(Boid* b){
     return ((long)b - (long)&boids[0])/sizeof(Boid); 
 } 
 
-// Put in the linked list for bucket with index 'index'
-void putInBucket(Boid& boid, int index){
-    if(index >= cellBuckets.size()) {
-		std::cout << "Hashtable: Index out of bounds";
-		return;
-	}
-    if(cellBuckets[index].head == NULL){ // Bucket is empty
-        cellBuckets[index] = BoidBucket(&boid);
-    } 
-    Boid* oldTail = cellBuckets[index].tail;
-    cellBuckets[index].tail = &boid;
-    int i = absToOffset(oldTail);// check offset from boids vector base (="index" of boid in vector)
-    nextBoid[i] = &boid; // the old tail boid now points to the new tail
+// This part is for hashing tuples of ints. Standard hash maps can only hash enum types
+template <class T>
+inline void hash_combine(std::size_t &seed, T &v)
+{
+    std::hash<T> hasher;
+    seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
 
-void clearHashTable(){
-    for(BoidBucket &b : cellBuckets){
-        b.head = NULL;
-        b.tail = NULL; // tail = NULL not strictly needed, only to prevent future bugs
-    }
+// Hashes tuples of ints
+long getCellHash(tuple<int, int, int> cell){
+	size_t seed = 0;
+    hash_combine(seed, std::get<0>(cell));
+    hash_combine(seed, std::get<1>(cell));
+	hash_combine(seed, std::get<2>(cell));
+    return seed;
 }
 
-// For debugging. Prints the contents of each bucket in the hashtable
-void printBuckets(){
-    for(int i = 0; i < cellBuckets.size(); i++){
-        if(cellBuckets[i].head == NULL) {
-            continue; // Empty bucket, don't print anything nothing
-        }
-		std::cout << std::endl << "Bucket nr " << i << ": " << absToOffset(cellBuckets[i].head);
-        Boid* tail = cellBuckets[i].tail;
-        Boid* current = cellBuckets[i].head;
-        do{
-            int j = absToOffset(current);
-            current = nextBoid[j];
-            std::cout << "->" << absToOffset(current);
-        }
-        while(current != tail);
-    }
-	std::cout << std::endl;
-}
-
-inline glm::vec3 getCell(glm::vec3 pos){
-	return pos * (1.0f/CELL_SIZE);  
-}
-
-// Computes the hash for a cell
-int getCellHash(glm::vec3 cell){
-	const glm::vec3 primes = glm::vec3(402653189, 805306457, 1610612741); // one prime per coordinate
-	cell = glm::floor(cell) * primes;
-	int hash = ((int)cell.x ^ (int)cell.y ^ (int)cell.z) % HASH_TABLE_SIZE; 
-	return std::abs(hash); 
+inline tuple<int, int, int> getCell(glm::vec3 pos){
+	glm::vec3 cell = glm::floor(pos * (1.0f/CELL_SIZE));
+	return tuple<int,int,int>(cell.x, cell.y, cell.z);  
 }
 
 // Puts boid b in the correct place in the hash table
 void putInHashTable(Boid& b){
-	glm::vec3 cell = getCell(b.position); // which cell is the boid currently in
-	int hashIndex = getCellHash(cell); // hash the cell position
-	putInBucket(b, hashIndex); // put in hash table at index hashIndex
+	tuple<int, int, int> cell = getCell(b.position); // which cell is the boid currently in
+	size_t cellHash = getCellHash(cell);
+	auto iter = cellBuckets.find(cellHash);
+	if(iter != cellBuckets.end()){
+		Boid* head = iter->second.head;
+		Boid* oldTail = iter->second.tail;
+   		iter->second = BoidBucket(head, &b);
+    	int i = absToOffset(oldTail);// check offset from boids vector base (="index" of boid in vector)
+    	nextBoid[i] = &b; // the old tail boid now points to the new tail
+	} else {
+		cellBuckets.insert(std::pair<size_t, BoidBucket>(cellHash, BoidBucket(&b)));
+	}
+	
+}
+
+// A little helper function that checks if b is within a's scope
+inline bool validNeighbour(Boid& a, Boid& b){
+	if(a.position != b.position && distance(a.position, b.position) < 10.0f){
+		return true;
+	}
+	return false;
 }
 
 std::vector<Boid*> getNeighbours(Boid& b){
 	// check all 3*3 neighbouring cells for boids
-	glm::vec3 centerCell = getCell(b.position); 
-	std::vector<Boid*> neighbours;
+	tuple<int, int,int> cell = getCell(b.position); 
+	// Collect all neighbours in a vector. Future optimization: iterate over neighbours directly instead of collecting in vector
+	std::vector<Boid*> neighbours; 
 	int boidIndex = absToOffset(&b);
 	for(int i= -1; i <= 1; i++){
 		for(int j= -1; j <= 1; j++){
 			for(int k= -1; k <= 1; k++){
-				glm::vec3 cellOffset = glm::vec3(i, j, k); // offset to neighbouring cells
-				int index = getCellHash(centerCell + cellOffset);
-				Boid* current = cellBuckets[index].head;
-				if (current == NULL) {
-					continue; // empty cell
-				}
-				Boid* tail = cellBuckets[index].tail;
-				do{
-					int l = absToOffset(current);
-					current = nextBoid[l];
-					neighbours.push_back(current);
-				} while(current != tail);
+				tuple<int, int,int> neighbourCell = {std::get<0>(cell)+i, std::get<1>(cell)+j, std::get<2>(cell)+k}; 
+				auto iter = cellBuckets.find(getCellHash(neighbourCell));
+				if(iter != cellBuckets.end()){
+					Boid* current = iter->second.head;
+					Boid* tail = iter->second.tail;
+					if(validNeighbour(b, *current)){
+						neighbours.push_back(current);
+					}
+					while(current != tail){
+						int l = absToOffset(current);
+						current = nextBoid[l];
+						if(validNeighbour(b, *current)){
+							neighbours.push_back(current); 
+						}
+					}
+				} 
 			}
 		}
 	}
 	return neighbours;
+}
+
+
+void updateBoids(Boid & b) { // Flocking rules are implemented here
+	
+	/*Alignment = Velocity Matching*/
+	//Sum the velocities of the neighbours and this boid and average them.
+
+	/*Separation = Collision Avoidance*/
+	//Sum the vectors from all neighbours to this boid. 
+
+	/*Cohesion - Flock Centering*/
+	//Sum the positions of the neighbours and average them, then subtract this boids position
+	
+	glm::vec3 alignment = b.velocity;
+	glm::vec3 separation = glm::vec3(0.0);
+	glm::vec3 cohesion = glm::vec3(0.0);
+
+	#ifdef USE_SPATIAL_HASH
+	std::vector<Boid*> nb = getNeighbours(b);
+	#else 
+	std::vector<Boid> nb;
+	for (Boid a : boids) {
+		comparisons++;
+		if ((a.position != b.position) && distance(a.position, b.position) < 10.0f)
+		{
+			nb.push_back(a);
+		}
+	}
+	#endif
+
+	// EXPERIMENTAL! Limit the boids to a dome 
+	float distFromOrigo = length(b.position);
+	const float domeRadius = 120;
+	const float margin = 20;
+	bool approachingLimit = false;
+	float speed;
+	glm::vec3 domeAvoidance = glm::vec3(0);
+	if(distFromOrigo + margin > domeRadius && length(b.position + b.velocity) > distFromOrigo){
+		speed = length(b.velocity);
+		approachingLimit = true;
+		domeAvoidance = std::max(0.0f, (domeRadius - distFromOrigo)/margin)*b.velocity - (margin/std::max(0.001f, domeRadius - distFromOrigo))*b.position;
+	}
+
+	if (std::size(nb) == 0) { // If there are no neighbours, dont change speed
+		return;
+	}
+	#ifndef USE_SPATIAL_HASH
+	for (Boid neighbour : nb) {
+	#else 
+	for(Boid* c : nb) {
+		Boid neighbour = *c;
+	#endif
+		alignment += neighbour.velocity;
+		separation += (b.position - neighbour.position) * 5.0f/distance(b.position, neighbour.position);
+		cohesion += neighbour.position;
+	}
+	alignment = alignment * (1.0f / (std::size(nb) + 1));
+	cohesion = cohesion * (1.0f / std::size(nb)) - b.position;
+	separation = separation * (1.0f / std::size(nb));
+
+	/*Update Velocity*/
+	if(approachingLimit){
+		b.velocity = domeAvoidance + separation; 
+	} else {
+		b.velocity = alignment + separation + 1.2f*cohesion;
+	}
 }
 
 
@@ -178,9 +246,9 @@ int main()
 	
 	// the model of a boid (just a triangle, three vertices), same for all boids ofc
 	float boidModel[] = {
-		-1.0f, -1.0f, 0.0f,
+		-0.67f, -1.0f, 0.0f,
 		 0.0f,  1.0f, 0.0f,
-		 1.0f, -1.0f, 0.0f
+		 0.67f, -1.0f, 0.0f
 	};
 
 	unsigned int VBO, VAO;
@@ -197,8 +265,6 @@ int main()
 	// render loop
 	// -----------
 
-    int frame = 0;
-    
 	while (!glfwWindowShouldClose(window))
 	{
 		// if got input, processed here
@@ -213,39 +279,50 @@ int main()
 		view = glm::translate(view, glm::vec3(0.0f, 0.0f, -120.0f));
 		glm::mat4 projection;
 		// projection: define FOV, aspect ratio and view frustum (near & far plane)
-		projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 150.0f);
+		projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 200.0f);
 
 		// attach the specified matrices to our shader as uniforms (send them to vertex shader)
 		shader.setMatrix("view", view);
 		shader.setMatrix("projection", projection);
-        shader.setVec3("ourColor", glm::vec3(0.0f));
 		// clear whatever was on screen last frame
 		glClearColor(0.90f, 0.95f, 0.96f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 		glBindVertexArray(VAO);
 		// move each boid to current pos, update pos given velocity
+		#ifdef USE_SPATIAL_HASH
+		for (Boid& b : boids){
+			putInHashTable(b);
+		}
+		#endif
 		for (Boid& b : boids)
 		{
-			b.position += 0.005f * b.velocity;
+			updateBoids(b);
+			tuple<int,int,int> cell = getCell(b.position);
+			//shader.setVec3("ourColor", glm::vec3(1.0f/((int)cell.x>>4), 1.0f/((int)cell.y>>5), 1.0f/((int)cell.z>>6)));
+			
+			b.position += 0.01f * b.velocity;
 			glm::mat4 model = glm::mat4(1.0f);
-			// rotate boid to face correct location (doesn't work)
-			//float angle = acos(dot(glm::vec3(0.0f, 1.0f, 0.0f), normalize(b.velocity)));
-			//if(angle > 1) model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
-			// move the model to boid location
-			model = glm::translate(model, b.position);
+			
+			// This seems to sovle the infamous rotating problem
+			model = glm::translate(model, b.position); // move the boid to the correct position
+			glm::vec3 v = glm::vec3(b.velocity.z, 0, -b.velocity.x);
+			float angle = acos(b.velocity.y / glm::length(b.velocity));
+			model = glm::rotate(model, angle, v);
+
 			// each boid gets its unique uniform model (applied in vertex shader)
 			shader.setMatrix("model", model);
-            // std::cout << "putting in hashtable: " << &b;
-            putInHashTable(b);
+			shader.setVec3("ourColor", glm::vec3(1.0f,1.0f,1.0f));
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, sizeof(boidModel) / (sizeof(float) * 3));
-		}
-		clearHashTable();
+		}		
+		cellBuckets.clear();
 
 		// render the triangle
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
 		glfwPollEvents();
+		frame++;
+		if(frame == 500) break;
 	}
 
 
