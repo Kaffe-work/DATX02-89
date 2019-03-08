@@ -1,4 +1,3 @@
-// #include "OpenGL/gl.h"
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
 
@@ -32,7 +31,7 @@ struct Boid {
 };
 
 // How many boids on screen
-int nr_boids = 100;
+int nrBoids = 100;
 std::vector<Boid> boids;
 
 // Boid attributes
@@ -66,7 +65,7 @@ struct BoidBucket{
 // HashTable with all the boids
 ska::flat_hash_map<unsigned long, BoidBucket> cellBuckets = ska::flat_hash_map<unsigned long, BoidBucket>();
 // Table containing one (if any) cell neighbour for each boid 
-std::vector<Boid*> nextBoid(nr_boids, NULL);
+std::vector<Boid*> nextBoid(nrBoids, NULL);
 
 // Helper function to convert a boids absolute address to it's offset in the vector containing all boids
 inline int absToOffset(Boid* b){
