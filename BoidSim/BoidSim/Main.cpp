@@ -24,12 +24,17 @@ struct Boid {
 	glm::vec3 position, velocity;
 
 	Boid()
-		: position(rand() % 81 - 40, rand() % 81 - 40, rand() % 81 - 40), velocity(rand() % 61 - 30, rand() % 61 - 30, rand() % 61 - 30) { }
+		: position(rand() % 81 - 40, rand() % 81 - 40, 0), velocity(rand() % 61 - 30, rand() % 61 - 30, 0) { }
 };
 
 // How many boids on screen
-int nr_boids = 500;
+int nr_boids = 100;
 std::vector<Boid> boids;
+
+// Boid attributes
+const float MAX_SPEED = 20.0f;
+const float MIN_SPEED = 7.0f;
+
 
 int frame = 0;
 
@@ -173,7 +178,7 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 
 	// EXPERIMENTAL! Limit the boids to a dome 
 	float distFromOrigo = length(b.position);
-	const float domeRadius = 120;
+	const float domeRadius = 80;
 	const float margin = 20;
 	bool approachingLimit = false;
 	float speed;
@@ -194,19 +199,22 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 		Boid neighbour = *c;
 	#endif
 		alignment += neighbour.velocity;
-		separation += (b.position - neighbour.position) * 5.0f/distance(b.position, neighbour.position);
+		separation += (b.position - neighbour.position) * 1.0f/(float)(pow(distance(b.position, neighbour.position),2) + 0.0001); // + 0.0001 is for avoiding divide by zero
 		cohesion += neighbour.position;
 	}
 	alignment = alignment * (1.0f / (std::size(nb) + 1));
 	cohesion = cohesion * (1.0f / std::size(nb)) - b.position;
 	separation = separation * (1.0f / std::size(nb));
 
+	glm::vec3 newVel;
 	/*Update Velocity*/
-	if(approachingLimit){
-		b.velocity = domeAvoidance + separation; 
+	if(approachingLimit){ // This is for the dome
+		newVel = domeAvoidance + separation; 
 	} else {
-		b.velocity = alignment + separation + 1.2f*cohesion;
+		newVel = alignment + 50.0f*separation + cohesion;
 	}
+	speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
+	b.velocity = speed*glm::normalize(newVel);
 }
 
 
@@ -322,7 +330,7 @@ int main()
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 		frame++;
-		if(frame == 500) break;
+		// if(frame == 500) break;
 	}
 
 
