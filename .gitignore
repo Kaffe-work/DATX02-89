@@ -1,10 +1,18 @@
-# exclude everything in BoidSim
-BoidSim/*
-local/*
+Ignore all files/folders in same directory as the .gitignore file
+/*
 
-# except 4 files
+# Whitelist .gitignore and README.md
+!.gitignore
+!README.md
+
+# Ignore generated (OS/software related) files
+**/.DS_Store
+**.log
+
+# Whitelist project files
 !BoidSim/BoidSim/frag.shader
 !BoidSim/BoidSim/vert.shader
 !BoidSim/BoidSim/Shader.h
 !BoidSim/BoidSim/Main.cpp
 !BoidSim/BoidSim/flat_hash_map.hpp
+!examples/
