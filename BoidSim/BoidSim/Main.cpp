@@ -22,24 +22,15 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
-int nrBoids = 100;
+int nrBoids = 200;
 std::vector<Boid> boids;
 
 // Boid attributes
 const float MAX_SPEED = 30.0f;
 const float MIN_SPEED = 20.0f;
-const float MAX_NOISE = 0.2;
+const float MAX_NOISE = 0.0;
 
 void updateBoids(Boid & b) { // Flocking rules are implemented here
-
-	/*Calculate neighbours*/
-	std::vector<Boid> nb;
-	for (Boid a : boids) {
-		if ((a.position != b.position) && distance(a.position, b.position) < 10.0f)
-		{
-			nb.push_back(a);
-		}
-	}
 
 	/*Alignment = Velocity Matching*/
 	//Sum the velocities of the neighbours and this boid and average them.
@@ -54,11 +45,12 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
 
-	if (std::size(nb) == 0) { // If there are no neighbours, dont change speed
+	std::vector<Boid*> nb = getNeighbours(b);
+	if (nb.size() == 0) { // If there are no neighbours, dont change speed
 		return;
 	}
-
-	for (Boid neighbour : nb) {
+	for (Boid* n : nb) {
+		Boid neighbour = *n;
 		alignment += neighbour.velocity * 4.0f/distance(b.position, neighbour.position);
 		separation += (b.position - neighbour.position) * 1.0f/(float)(pow(distance(b.position, neighbour.position),2) + 0.0001); // + 0.0001 is for avoiding divide by zero
 		cohesion += neighbour.position;
@@ -158,6 +150,11 @@ int main()
 
 		glBindVertexArray(VAO);
 
+		// Put all boids in the hash table so we can use it in the next loop
+		for (Boid& b : boids){
+			putInHashTable(b);
+		}
+
 		// move each boid to current pos, update pos given velocity
 		for (Boid& b : boids)
 		{
@@ -177,6 +174,7 @@ int main()
 
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, sizeof(boidModel) / (sizeof(float) * 3));
 		}
+		clearHashTable();
 		// render the triangle
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
