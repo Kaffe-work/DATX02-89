@@ -2,6 +2,9 @@
 BoidSim/*
 local/*
 
+# OS generated files
+.DS_store
+
 # except 4 files
 !BoidSim/BoidSim/frag.shader
 !BoidSim/BoidSim/vert.shader
