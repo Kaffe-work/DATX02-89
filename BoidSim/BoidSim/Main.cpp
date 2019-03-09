@@ -28,7 +28,13 @@ std::vector<Boid> boids;
 // Boid attributes
 const float MAX_SPEED = 30.0f;
 const float MIN_SPEED = 20.0f;
-const float MAX_NOISE = 0.2;
+const float MAX_NOISE = 0.5;
+
+// If e.g. percentage = 1 => vec3(0,0,0) will be returned with 99% probability
+glm::vec3 getRandomVectorWithChance(int percentage) {
+	bool maybe = percentage == 0 ? false : rand() % percentage == 1;
+	return glm::vec3(maybe ? rand() % 61 - 30, rand() % 61 - 30, 0 : 0, 0, 0);
+}
 
 void updateBoids(Boid & b) { // Flocking rules are implemented here
 
@@ -49,13 +55,14 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 
 	/*Cohesion - Flock Centering*/
 	//Sum the positions of the neighbours and average them, then subtract this boids position
-	
+
 	glm::vec3 alignment = b.velocity;
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
 
 	if (std::size(nb) == 0) { // If there are no neighbours, dont change speed
-		return;
+		b.velocity *= glm::clamp(length(b.velocity), MIN_SPEED, MAX_SPEED);
+		return;	
 	}
 
 	for (Boid neighbour : nb) {
@@ -66,9 +73,8 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	alignment = alignment * (1.0f / (std::size(nb) + 1));
 	cohesion = cohesion * (1.0f / std::size(nb)) - b.position;
 	separation = separation * (1.0f / std::size(nb));
-	glm::vec3 noise = MAX_NOISE*glm::vec3(((float) rand() / (RAND_MAX)), ((float) rand() / (RAND_MAX)), 0);
 
-	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + noise;
+	glm::vec3 newVel = alignment + 50.0f*separation + 1.2f*cohesion + MAX_NOISE * getRandomVectorWithChance(45);
 	float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
 
 	/*Update Velocity*/
