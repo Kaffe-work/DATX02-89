@@ -10,9 +10,9 @@ Ignore all files/folders in same directory as the .gitignore file
 **.log
 
 # Whitelist project files
-!*.shader
-!*.h
-!*.cpp
+!BoidSim/BoidSim/*.shader
+!BoidSim/BoidSim/*.h
+!BoidSim/BoidSim/*.cpp
 
 # Whitelist demo folder
 !examples/
