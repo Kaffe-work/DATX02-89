@@ -7,6 +7,7 @@
 #include <vector>
 #include <Shader.h>
 #include <list>
+#include <boid.h>
 
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -19,14 +20,6 @@ const unsigned int screenWidth = 1280, screenHeight = 720;
 glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
-
-// A boid has a position on screen and a velocity. Constructor creates random vec3 of both
-struct Boid {
-	glm::vec3 position, velocity;
-
-	Boid()
-		: position(rand() % 161 - 80, rand() % 61 - 30, rand() % 61 - 30), velocity(rand() % 61 - 30, rand() % 61 - 30, rand() % 61 - 30) { }
-};
 
 // How many boids on screen
 int nrBoids = 100;

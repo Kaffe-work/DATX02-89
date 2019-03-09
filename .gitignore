@@ -14,4 +14,5 @@ Ignore all files/folders in same directory as the .gitignore file
 !BoidSim/BoidSim/vert.shader
 !BoidSim/BoidSim/Shader.h
 !BoidSim/BoidSim/Main.cpp
+!BoidSim/BoidSim/boid.h
 !examples/
