@@ -32,6 +32,11 @@ struct Boid {
 int nrBoids = 100;
 std::vector<Boid> boids;
 
+// Boid attributes
+const float MAX_SPEED = 30.0f;
+const float MIN_SPEED = 20.0f;
+const float MAX_NOISE = 0.2;
+
 void updateBoids(Boid & b) { // Flocking rules are implemented here
 
 	/*Calculate neighbours*/
@@ -61,16 +66,20 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	}
 
 	for (Boid neighbour : nb) {
-		alignment += neighbour.velocity;
-		separation += (b.position - neighbour.position) * 5.0f/distance(b.position, neighbour.position);
+		alignment += neighbour.velocity * 4.0f/distance(b.position, neighbour.position);
+		separation += (b.position - neighbour.position) * 1.0f/(float)(pow(distance(b.position, neighbour.position),2) + 0.0001); // + 0.0001 is for avoiding divide by zero
 		cohesion += neighbour.position;
 	}
 	alignment = alignment * (1.0f / (std::size(nb) + 1));
 	cohesion = cohesion * (1.0f / std::size(nb)) - b.position;
 	separation = separation * (1.0f / std::size(nb));
+	glm::vec3 noise = MAX_NOISE*glm::vec3(((float) rand() / (RAND_MAX)), ((float) rand() / (RAND_MAX)), 0);
+
+	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + noise;
+	float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
 
 	/*Update Velocity*/
-	b.velocity = alignment + separation + 1.2f*cohesion;
+	b.velocity = speed*glm::normalize(newVel);
 }
 
 int main()
@@ -162,11 +171,13 @@ int main()
 
 			b.position += 0.01f * b.velocity;
 			glm::mat4 model = glm::mat4(1.0f);
-			// rotate boid to face correct location (doesn't work)
-			float angle = acos(dot(glm::vec3(0.0f, 1.0f, 0.0f), normalize(b.velocity)));
-			model = glm::rotate(model, glm::radians(angle), glm::vec3(0.0f, 0.0f, 1.0f));
-			// move the model to boid location
-			model = glm::translate(model, b.position);
+			
+			// This seems to sovle the infamous rotating problem
+			model = glm::translate(model, b.position); // move the boid to the correct position
+			glm::vec3 v = glm::vec3(b.velocity.z, 0, -b.velocity.x);
+			float angle = acos(b.velocity.y / glm::length(b.velocity));
+			model = glm::rotate(model, angle, v);
+
 			// each boid gets its unique uniform model (applied in vertex shader)
 			shader.setMatrix("model", model);
 
