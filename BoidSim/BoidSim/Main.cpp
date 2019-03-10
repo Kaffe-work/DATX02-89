@@ -8,6 +8,7 @@
 #include <Shader.h>
 #include <list>
 #include <boid.h>
+#include <algorithm>
 
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -28,12 +29,12 @@ std::vector<Boid> boids;
 // Boid attributes
 const float MAX_SPEED = 30.0f;
 const float MIN_SPEED = 20.0f;
-const float MAX_NOISE = 0.25;
+const float MAX_NOISE = 0.2;
 
 // If e.g. percentage = 1 => vec3(0,0,0) will be returned with 99% probability
 glm::vec3 getRandomVectorWithChance(int percentage) {
 	bool maybe = percentage == 0 ? false : rand() % (100/percentage) == 0;
-	return glm::vec3(maybe ? rand() % 121 - 60, rand() % 121 - 60, rand() % 41 - 20 : 0, 0, 0);
+	return glm::vec3(maybe ? rand() % 121 - 60, rand() % 121 - 60, rand() % 21 - 10 : 0, 0, 0);
 }
 
 void updateBoids(Boid & b) { // Flocking rules are implemented here
@@ -74,7 +75,9 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	cohesion = cohesion * (1.0f / std::size(nb)) - b.position;
 	separation = separation * (1.0f / std::size(nb));
 
-	glm::vec3 newVel = alignment + 50.0f*separation + 1.2f*cohesion + MAX_NOISE * getRandomVectorWithChance(10);
+	
+	/*Update Velocity*/
+	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + MAX_NOISE * getRandomVectorWithChance(20);
 	float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
 
 	/*Update Velocity*/
