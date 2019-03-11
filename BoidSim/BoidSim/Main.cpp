@@ -1,15 +1,15 @@
-#include <glad/glad.h>
+#include "glad/glad.h"
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <vector>
-#include <Shader.h>
+#include "Shader.h"
 #include <list>
 #include <boid.h>
+#include "spatial_hash.hpp"
 #include <algorithm>
-
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -29,7 +29,7 @@ std::vector<Boid> boids;
 // Boid attributes
 const float MAX_SPEED = 30.0f;
 const float MIN_SPEED = 20.0f;
-const float MAX_NOISE = 0.2;
+const float MAX_NOISE = .5f;
 
 // If e.g. percentage = 1 => vec3(0,0,0) will be returned with 99% probability
 glm::vec3 getRandomVectorWithChance(int percentage) {
@@ -38,15 +38,6 @@ glm::vec3 getRandomVectorWithChance(int percentage) {
 }
 
 void updateBoids(Boid & b) { // Flocking rules are implemented here
-
-	/*Calculate neighbours*/
-	std::vector<Boid> nb;
-	for (Boid a : boids) {
-		if ((a.position != b.position) && distance(a.position, b.position) < 10.0f)
-		{
-			nb.push_back(a);
-		}
-	}
 
 	/*Alignment = Velocity Matching*/
 	//Sum the velocities of the neighbours and this boid and average them.
@@ -61,12 +52,13 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
 
-	if (std::size(nb) == 0) { // If there are no neighbours, dont change speed
+	std::vector<Boid*> nb = getNeighbours(b);
+	if (std::size(nb) == 0) { 
 		b.velocity *= glm::clamp(length(b.velocity), MIN_SPEED, MAX_SPEED);
 		return;	
 	}
-
-	for (Boid neighbour : nb) {
+	for (Boid* n : nb) {
+		Boid neighbour = *n;
 		alignment += neighbour.velocity * 4.0f/distance(b.position, neighbour.position);
 		separation += (b.position - neighbour.position) * 1.0f/(float)(pow(distance(b.position, neighbour.position),2) + 0.0001); // + 0.0001 is for avoiding divide by zero
 		cohesion += neighbour.position;
@@ -74,7 +66,6 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	alignment = alignment * (1.0f / (std::size(nb) + 1));
 	cohesion = cohesion * (1.0f / std::size(nb)) - b.position;
 	separation = separation * (1.0f / std::size(nb));
-
 	
 	/*Update Velocity*/
 	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + MAX_NOISE * getRandomVectorWithChance(20);
@@ -91,6 +82,7 @@ int main()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Needed for OS X, and possibly Linux
 
 	// glfw: window creation
 	GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", NULL, NULL);
@@ -166,6 +158,11 @@ int main()
 
 		glBindVertexArray(VAO);
 
+		// Put all boids in the hash table so we can use it in the next loop
+		for (Boid& b : boids){
+			putInHashTable(b);
+		}
+
 		// move each boid to current pos, update pos given velocity
 		for (Boid& b : boids)
 		{
@@ -185,6 +182,7 @@ int main()
 
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, sizeof(boidModel) / (sizeof(float) * 3));
 		}
+		clearHashTable();
 		// render the triangle
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
