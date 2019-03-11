@@ -21,8 +21,9 @@ The idea is to achieve complex group behaviours from simple rules for each agent
 
 ## Progress
 
-The following animations demonstrate the progression of our project. The leftmost image demonstrates the most recent change.
+The left animation demonstrates the most recent look of the game.
 <p>
+<img src="examples/4_improvedbehaviourswithnoise.gif" width="150" alt="Improved behaviours with noise" />
 <img src="examples/3_movablecamera_and_3d.gif" width="150" alt="Movable camera and 3D" />
 <img src="examples/2_naiveflocking.gif" width="150" alt="Naive first attempt" />
 <img src="examples/1_norules.gif" width="150" alt="No rules" />

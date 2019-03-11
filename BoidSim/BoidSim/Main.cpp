@@ -7,8 +7,9 @@
 #include <vector>
 #include "Shader.h"
 #include <list>
-#include "boid.h"
+#include <boid.h>
 #include "spatial_hash.hpp"
+#include <algorithm>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -30,6 +31,12 @@ const float MAX_SPEED = 30.0f;
 const float MIN_SPEED = 20.0f;
 const float MAX_NOISE = .5f;
 
+// If e.g. percentage = 1 => vec3(0,0,0) will be returned with 99% probability
+glm::vec3 getRandomVectorWithChance(int percentage) {
+	bool maybe = percentage == 0 ? false : rand() % (100/percentage) == 0;
+	return glm::vec3(maybe ? rand() % 121 - 60, rand() % 121 - 60, rand() % 21 - 10 : 0, 0, 0);
+}
+
 void updateBoids(Boid & b) { // Flocking rules are implemented here
 
 	/*Alignment = Velocity Matching*/
@@ -40,14 +47,15 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 
 	/*Cohesion - Flock Centering*/
 	//Sum the positions of the neighbours and average them, then subtract this boids position
-	
+
 	glm::vec3 alignment = b.velocity;
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
 
 	std::vector<Boid*> nb = getNeighbours(b);
-	if (nb.size() == 0) { // If there are no neighbours, dont change speed
-		return;
+	if (std::size(nb) == 0) { 
+		b.velocity *= glm::clamp(length(b.velocity), MIN_SPEED, MAX_SPEED);
+		return;	
 	}
 	for (Boid* n : nb) {
 		Boid neighbour = *n;
@@ -58,9 +66,9 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	alignment = alignment * (1.0f / (std::size(nb) + 1));
 	cohesion = cohesion * (1.0f / std::size(nb)) - b.position;
 	separation = separation * (1.0f / std::size(nb));
-	glm::vec3 noise = MAX_NOISE*glm::vec3(1 + rand() / ( RAND_MAX / -2.0f ), 1 + rand() / ( RAND_MAX / -2.0f ), 1 + rand() / ( RAND_MAX / -2.0f ));
-
-	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + noise;
+	
+	/*Update Velocity*/
+	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + MAX_NOISE * getRandomVectorWithChance(20);
 	float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
 
 	/*Update Velocity*/
