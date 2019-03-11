@@ -28,7 +28,7 @@ std::vector<Boid> boids;
 // Boid attributes
 const float MAX_SPEED = 30.0f;
 const float MIN_SPEED = 20.0f;
-const float MAX_NOISE = 0.0;
+const float MAX_NOISE = .5f;
 
 void updateBoids(Boid & b) { // Flocking rules are implemented here
 
@@ -58,7 +58,7 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	alignment = alignment * (1.0f / (std::size(nb) + 1));
 	cohesion = cohesion * (1.0f / std::size(nb)) - b.position;
 	separation = separation * (1.0f / std::size(nb));
-	glm::vec3 noise = MAX_NOISE*glm::vec3(((float) rand() / (RAND_MAX)), ((float) rand() / (RAND_MAX)), 0);
+	glm::vec3 noise = MAX_NOISE*glm::vec3(1 + rand() / ( RAND_MAX / -2.0f ), 1 + rand() / ( RAND_MAX / -2.0f ), 1 + rand() / ( RAND_MAX / -2.0f ));
 
 	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + noise;
 	float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
