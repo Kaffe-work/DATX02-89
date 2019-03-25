@@ -31,6 +31,24 @@ const float MAX_SPEED = 30.0f;
 const float MIN_SPEED = 20.0f;
 const float MAX_NOISE = .5f;
 
+// Time, used to print performance
+double lastTime = glfwGetTime();
+int nrFrames = 0;
+
+// Reference: http://www.opengl-tutorial.org/miscellaneous/an-fps-counter/
+void printPerformance() {
+	// Print if 1 sec has passed since last time
+	double currentTime = glfwGetTime();
+	nrFrames++;
+	if (currentTime - lastTime >= 1.0) {
+		if (currentTime < 2) std::cout << "Nr agents: " << nrBoids << std::endl;
+		// print data and reset
+		std::cout << "avg drawtime: " << 1000 / double(nrFrames) << "ms, fps: " << nrFrames << std::endl;
+		nrFrames = 0;
+		lastTime += 1.0;
+	}
+}
+
 // If e.g. percentage = 1 => vec3(0,0,0) will be returned with 99% probability
 glm::vec3 getRandomVectorWithChance(int percentage) {
 	bool maybe = percentage == 0 ? false : rand() % (100/percentage) == 0;
