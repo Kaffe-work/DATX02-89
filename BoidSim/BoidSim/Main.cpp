@@ -41,9 +41,10 @@ void printPerformance() {
 	double currentTime = glfwGetTime();
 	nrFrames++;
 	if (currentTime - lastTime >= 1.0) {
+		// print number of agents only once
 		if (currentTime < 2) std::cout << "Nr agents: " << nrBoids << std::endl;
 		// print data and reset
-		std::cout << "avg drawtime: " << 1000 / double(nrFrames) << "ms, fps: " << nrFrames << std::endl;
+		std::cout << "avg draw time: " << 1000 / double(nrFrames) << "ms, fps: " << nrFrames << std::endl;
 		nrFrames = 0;
 		lastTime += 1.0;
 	}
@@ -149,12 +150,13 @@ int main()
 	// -----------
 	while (!glfwWindowShouldClose(window))
 	{
+		// print performance to console
+		printPerformance();
 		// if got input, processed here
 		processInput(window);
 
 		// use the shader instantiated earlier
 		shader.use();
-
 		// create some matrices for our coordinate system
 		glm::mat4 view = glm::mat4(1.0f);
 		// update camera direction, rotation
