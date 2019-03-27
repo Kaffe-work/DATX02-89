@@ -148,7 +148,7 @@ int main()
 	shader.setMatrix("projection", projection);
 
 	// instantiate array for boids
-	glm::vec3 renderBoids[nrBoids];
+	glm::vec3 renderBoids[nrBoids*3];
 
 	// render loop
 	// -----------
