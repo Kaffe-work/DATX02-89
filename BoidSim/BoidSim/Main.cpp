@@ -23,13 +23,13 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
-int nrBoids = 200;
+int nrBoids = 400;
 std::vector<Boid> boids;
 
 // Boid attributes
 const float MAX_SPEED = 30.0f;
 const float MIN_SPEED = 20.0f;
-const float MAX_NOISE = .5f;
+const float MAX_NOISE = 0.0f;
 
 // If e.g. percentage = 1 => vec3(0,0,0) will be returned with 99% probability
 glm::vec3 getRandomVectorWithChance(int percentage) {
@@ -43,7 +43,7 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	//Sum the velocities of the neighbours and this boid and average them.
 
 	/*Separation = Collision Avoidance*/
-	//Sum the vectors from all neighbours to this boid. 
+	//Sum the vectors from all neighbours to this boid.  
 
 	/*Cohesion - Flock Centering*/
 	//Sum the positions of the neighbours and average them, then subtract this boids position
@@ -66,9 +66,16 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	alignment = alignment * (1.0f / (std::size(nb) + 1));
 	cohesion = cohesion * (1.0f / std::size(nb)) - b.position;
 	separation = separation * (1.0f / std::size(nb));
-	
+
+	/*Repellation - Escape*/
+	//Inverse square function of distance between point of repellation and a boid, from the KTH paper about Sheep and a predator.
+	glm::vec3 repellation = glm::vec3(0.0);
+	glm::vec3 point = cameraPos + cameraDir;
+
+	repellation = normalize(b.position - point)*(1.0f/pow(distance(b.position, point)/20.0f + 0.0001f,2));
+
 	/*Update Velocity*/
-	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + MAX_NOISE * getRandomVectorWithChance(20);
+	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + repellation + MAX_NOISE * getRandomVectorWithChance(20);
 	float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
 
 	/*Update Velocity*/
