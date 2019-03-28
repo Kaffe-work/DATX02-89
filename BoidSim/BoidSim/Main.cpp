@@ -29,7 +29,7 @@ std::vector<Boid> boids;
 // Boid attributes
 const float MAX_SPEED = 30.0f;
 const float MIN_SPEED = 20.0f;
-const float MAX_NOISE = 0.0f;
+const float MAX_NOISE = 2.0f;
 
 // Time, used to print performance
 double lastTime = glfwGetTime();
@@ -53,7 +53,7 @@ void printPerformance() {
 // If e.g. percentage = 1 => vec3(0,0,0) will be returned with 99% probability
 glm::vec3 getRandomVectorWithChance(int percentage) {
 	bool maybe = percentage == 0 ? false : rand() % (100/percentage) == 0;
-	return glm::vec3(maybe ? rand() % 121 - 60, rand() % 121 - 60, rand() % 21 - 10 : 0, 0, 0);
+	return glm::vec3(maybe ? rand() % 121 - 60, rand() % 121 - 60, 0 /*rand() % 21 - 10*/ : 0, 0, 0);
 }
 
 void updateBoids(Boid & b) { // Flocking rules are implemented here
@@ -88,13 +88,14 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 
 	/*Repellation - Escape*/
 	//Inverse square function of distance between point of repellation and a boid, from the KTH paper about Sheep and a predator.
-	glm::vec3 repellation = glm::vec3(0.0);
-	glm::vec3 point = cameraPos + cameraDir;
-
-	repellation = normalize(b.position - point)*(1.0f/pow(distance(b.position, point)/20.0f + 0.0001f,2));
+	//Point of repellation: A + dot(AP,AB) / dot(AB,AB) * AB
+	
+	glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
+	glm::vec3 repellation = normalize(b.position - point)*(1.0f/pow(distance(b.position, point)/5.0f + 2.0f,2));
+	//glm::vec3 repellation = b.position - point;
 
 	/*Update Velocity*/
-	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + repellation + MAX_NOISE * getRandomVectorWithChance(20);
+	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + 100.0f*repellation + MAX_NOISE * getRandomVectorWithChance(20);
 	float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
 
 	/*Update Velocity*/
