@@ -31,6 +31,25 @@ const float MAX_SPEED = 30.0f;
 const float MIN_SPEED = 20.0f;
 const float MAX_NOISE = 0.0f;
 
+// Time, used to print performance
+double lastTime = glfwGetTime();
+int nrFrames = 0;
+
+// Reference: http://www.opengl-tutorial.org/miscellaneous/an-fps-counter/
+void printPerformance() {
+	// Print if 1 sec has passed since last time
+	double currentTime = glfwGetTime();
+	nrFrames++;
+	if (currentTime - lastTime >= 1.0) {
+		// print number of agents only once
+		if (currentTime < 2) std::cout << "Nr agents: " << nrBoids << std::endl;
+		// print data and reset
+		std::cout << "avg draw time: " << 1000 / double(nrFrames) << "ms, fps: " << nrFrames << std::endl;
+		nrFrames = 0;
+		lastTime += 1.0;
+	}
+}
+
 // If e.g. percentage = 1 => vec3(0,0,0) will be returned with 99% probability
 glm::vec3 getRandomVectorWithChance(int percentage) {
 	bool maybe = percentage == 0 ? false : rand() % (100/percentage) == 0;
@@ -115,55 +134,48 @@ int main()
 	// create the boids (allocate space and randomize position/velocity by calling constructor)
 	for (int i = 0; i < nrBoids; ++i)
 		boids.push_back(Boid());
+	
+	// one vector for each vertex
+	glm::vec3 p1(-1.0f, -1.0f, 0.0f);
+	glm::vec3 p2(0.0f, 1.0f, 0.0f);
+	glm::vec3 p3(1.0f, -1.0f, 0.0f);
 
-	// the model of a boid (just a triangle, three vertices), same for all boids ofc
-	float boidModel[] = {
-		-1.0f, -1.0f, 0.0f,
-		 0.0f,  1.0f, 0.0f,
-		 1.0f, -1.0f, 0.0f
-	};
-
-	unsigned int VBO, VAO;
+	// generate vertex array object
+	unsigned int VAO, VBO;
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
-	glBindVertexArray(VAO);
 
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(boidModel), boidModel, GL_STATIC_DRAW);
+	// use the shader created earlier so we can attach matrices
+	shader.use();
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
+	// instantiate transformation matrices
+	glm::mat4 projection, view, model;
+	// projection will always be the same: define FOV, aspect ratio and view frustum (near & far plane)
+	projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 1000.0f);
+	// set projection matrix as uniform (attach to bound shader)
+	shader.setMatrix("projection", projection);
+
+	// instantiate array for boids
+	std::vector<glm::vec3> renderBoids;
 
 	// render loop
 	// -----------
 	while (!glfwWindowShouldClose(window))
 	{
+		// print performance to console
+		printPerformance();
 		// if got input, processed here
 		processInput(window);
 
-		// use the shader instantiated earlier
-		shader.use();
-
-		// create some matrices for our coordinate system
-		glm::mat4 view = glm::mat4(1.0f);
 		// update camera direction, rotation
 		cameraDir = glm::vec3(cos(pitch)*cos(yaw), sin(-pitch), cos(pitch)*sin(yaw));
 		normalize(cameraDir);
 		// calculate view-matrix based on cameraDir and cameraPos
 		view = glm::lookAt(cameraPos, cameraPos + cameraDir, glm::vec3(0.0f, 1.0f, 0.0f));
-		glm::mat4 projection;
-		// projection: define FOV, aspect ratio and view frustum (near & far plane)
-		projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 1000.0f);
-
-		// attach the specified matrices to our shader as uniforms (send them to vertex shader)
-		shader.setMatrix("view", view);
-		shader.setMatrix("projection", projection);
-
 		// clear whatever was on screen last frame
+
 		glClearColor(0.90f, 0.95f, 0.96f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
-
-		glBindVertexArray(VAO);
 
 		// Put all boids in the hash table so we can use it in the next loop
 		for (Boid& b : boids){
@@ -173,24 +185,44 @@ int main()
 		// move each boid to current pos, update pos given velocity
 		for (Boid& b : boids)
 		{
+			// update boid velocity
 			updateBoids(b);
 
+			// move the boid in its facing direction
 			b.position += 0.01f * b.velocity;
+
+			// create model matrix from agent position
 			glm::mat4 model = glm::mat4(1.0f);
-			
-			// This seems to sovle the infamous rotating problem
-			model = glm::translate(model, b.position); // move the boid to the correct position
+			model = glm::translate(model, b.position);
 			glm::vec3 v = glm::vec3(b.velocity.z, 0, -b.velocity.x);
 			float angle = acos(b.velocity.y / glm::length(b.velocity));
 			model = glm::rotate(model, angle, v);
 
-			// each boid gets its unique uniform model (applied in vertex shader)
-			shader.setMatrix("model", model);
+			// transform each vertex and add them to array
+			renderBoids.push_back(view * model * glm::vec4(p1, 1.0f));
+			renderBoids.push_back(view * model * glm::vec4(p2, 1.0f));
+			renderBoids.push_back(view * model * glm::vec4(p3, 1.0f));
 
-			glDrawArrays(GL_TRIANGLE_STRIP, 0, sizeof(boidModel) / (sizeof(float) * 3));
 		}
 		clearHashTable();
-		// render the triangle
+
+		// bind vertex array
+		glBindVertexArray(VAO);
+		// bind buffer object and boid array
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 3, &renderBoids[0], GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+		glEnableVertexAttribArray(0);
+
+		// Draw 3 * nrBoids vertices
+		glDrawArrays(GL_TRIANGLES, 0, nrBoids * 3);
+
+		// de-allocate array
+		renderBoids.clear();
+
+		// unbind buffer and vertex array
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
