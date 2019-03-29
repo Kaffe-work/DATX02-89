@@ -150,6 +150,27 @@ int main()
 	// instantiate array for boids
 	glm::vec3 renderBoids[nrBoids*3];
 
+	//Create new framebuffer
+	GLuint frameBuffer;
+	glGenFramebuffers(1, &frameBuffer);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+
+	GLuint texColorBuffer;
+	glGenTextures(1, &texColorBuffer);
+	glBindTexture(GL_TEXTURE_2D, texColorBuffer);
+
+	glTexImage2D(
+		GL_TEXTURE_2D, 0, GL_RGB, 800, 600, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL
+	);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glFramebufferTexture2D(
+		GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texColorBuffer, 0
+	);
+
 	// render loop
 	// -----------
 	while (!glfwWindowShouldClose(window))
@@ -222,6 +243,7 @@ int main()
 	// optional: de-allocate all resources once they've outlived their purpose:
 	glDeleteVertexArrays(1, &VAO);
 	glDeleteBuffers(1, &VBO);
+	glDeleteFramebuffers(1, &frameBuffer);
 
 	// glfw: terminate, clearing all previously allocated GLFW resources.
 	glfwTerminate();
