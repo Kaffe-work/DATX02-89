@@ -30,6 +30,7 @@ std::vector<Boid> boids;
 const float MAX_SPEED = 30.0f;
 const float MIN_SPEED = 20.0f;
 const float MAX_NOISE = 2.0f;
+bool repellLine = false;
 
 // Time, used to print performance
 double lastTime = glfwGetTime();
@@ -70,6 +71,7 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	glm::vec3 alignment = b.velocity;
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
+	glm::vec3 repellation = glm::vec3(0.0);
 
 	std::vector<Boid*> nb = getNeighbours(b);
 	if (std::size(nb) == 0) { 
@@ -90,10 +92,11 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	//Inverse square function of distance between point of repellation and a boid, from the KTH paper about Sheep and a predator.
 	//Point of repellation: A + dot(AP,AB) / dot(AB,AB) * AB
 	
-	glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
-	glm::vec3 repellation = normalize(b.position - point)*(1.0f/pow(distance(b.position, point)/5.0f + 2.0f,2));
-	//glm::vec3 repellation = b.position - point;
-
+	if (repellLine) {
+		glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
+		repellation = normalize(b.position - point)*(1.0f / pow(distance(b.position, point) / 5.0f + 2.0f, 2));
+	}
+	
 	/*Update Velocity*/
 	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + 100.0f*repellation + MAX_NOISE * getRandomVectorWithChance(20);
 	float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
@@ -270,6 +273,13 @@ void processInput(GLFWwindow *window)
 	state = glfwGetKey(window, GLFW_KEY_D);
 	if (state == GLFW_PRESS) {
 		cameraPos += cross(cameraDir, glm::vec3(0.0f, 1.0f, 0.0f)) * 3.0f;
+	}
+	state = glfwGetKey(window, GLFW_KEY_SPACE);
+	if (state == GLFW_PRESS) {
+		repellLine = true;
+	}
+	else {
+		repellLine = false;
 	}
 
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
