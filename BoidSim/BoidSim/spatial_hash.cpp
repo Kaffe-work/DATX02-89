@@ -1,6 +1,7 @@
 #include "spatial_hash.hpp"
 #include <tuple>
 #include <vector>
+#include <unordered_map>
 using std::tuple;
 
 #define USE_SPATIAL_HASH // comment out this for the naive n^2 version
@@ -21,7 +22,8 @@ struct BoidBucket{
 };
 
 // HashTable with all the boids
-ska::flat_hash_map<unsigned long, BoidBucket> cellBuckets = ska::flat_hash_map<unsigned long, BoidBucket>();
+//ska::flat_hash_map<unsigned long, BoidBucket> cellBuckets = ska::flat_hash_map<unsigned long, BoidBucket>();
+std::unordered_map<unsigned long, BoidBucket> cellBuckets = std::unordered_map<unsigned long, BoidBucket>();
 // Table containing one (if any) cell neighbour for each boid 
 std::vector<Boid*> nextBoid(nrBoids, NULL);
 
