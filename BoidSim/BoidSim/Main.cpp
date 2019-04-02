@@ -7,7 +7,7 @@
 #include <vector>
 #include "Shader.h"
 #include <list>
-#include <boid.h>
+#include "boid.h"
 #include "spatial_hash.hpp"
 #include <algorithm>
 
@@ -23,7 +23,7 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
-int nrBoids = 400;
+const int nrBoids = 1000;
 std::vector<Boid> boids;
 
 // Boid attributes
@@ -43,7 +43,6 @@ void printPerformance() {
 	nrFrames++;
 	if (currentTime - lastTime >= 1.0) {
 		// print number of agents only once
-		if (currentTime < 2) std::cout << "Nr agents: " << nrBoids << std::endl;
 		// print data and reset
 		std::cout << "avg draw time: " << 1000 / double(nrFrames) << "ms, fps: " << nrFrames << std::endl;
 		nrFrames = 0;
@@ -160,7 +159,7 @@ int main()
 	shader.setMatrix("projection", projection);
 
 	// instantiate array for boids
-	std::vector<glm::vec3> renderBoids;
+	glm::vec3 renderBoids[nrBoids*3];
 
 	// render loop
 	// -----------
@@ -186,6 +185,8 @@ int main()
 			putInHashTable(b);
 		}
 
+		int i = 0;
+
 		// move each boid to current pos, update pos given velocity
 		for (Boid& b : boids)
 		{
@@ -203,10 +204,9 @@ int main()
 			model = glm::rotate(model, angle, v);
 
 			// transform each vertex and add them to array
-			renderBoids.push_back(view * model * glm::vec4(p1, 1.0f));
-			renderBoids.push_back(view * model * glm::vec4(p2, 1.0f));
-			renderBoids.push_back(view * model * glm::vec4(p3, 1.0f));
-
+			renderBoids[i++] = view * model * glm::vec4(p1, 1.0f);
+			renderBoids[i++] = view * model * glm::vec4(p2, 1.0f);
+			renderBoids[i++] = view * model * glm::vec4(p3, 1.0f);
 		}
 		clearHashTable();
 
@@ -220,9 +220,6 @@ int main()
 
 		// Draw 3 * nrBoids vertices
 		glDrawArrays(GL_TRIANGLES, 0, nrBoids * 3);
-
-		// de-allocate array
-		renderBoids.clear();
 
 		// unbind buffer and vertex array
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
