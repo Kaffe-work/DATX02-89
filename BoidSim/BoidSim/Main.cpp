@@ -7,9 +7,11 @@
 #include <vector>
 #include "Shader.h"
 #include <list>
-#include <boid.h>
+#include "boid.h"
 #include "spatial_hash.hpp"
 #include <algorithm>
+#include "tbb/parallel_for.h"
+#include "tbb/task_scheduler_init.h"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -23,7 +25,7 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
-const int nrBoids = 1000;
+const int nrBoids = 3000;
 std::vector<Boid> boids;
 
 // Boid attributes
@@ -55,7 +57,7 @@ glm::vec3 getRandomVectorWithChance(int percentage) {
 	return glm::vec3(maybe ? rand() % 121 - 60, rand() % 121 - 60, rand() % 21 - 10 : 0, 0, 0);
 }
 
-void updateBoids(Boid & b) { // Flocking rules are implemented here
+glm::vec3 updateBoid(Boid & b) { // Flocking rules are implemented here
 
 	/*Alignment = Velocity Matching*/
 	//Sum the velocities of the neighbours and this boid and average them.
@@ -69,11 +71,11 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	glm::vec3 alignment = b.velocity;
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
-
+	
 	std::vector<Boid*> nb = getNeighbours(b);
 	if (std::size(nb) == 0) { 
 		b.velocity *= glm::clamp(length(b.velocity), MIN_SPEED, MAX_SPEED);
-		return;	
+		return b.velocity;	
 	}
 	for (Boid* n : nb) {
 		Boid neighbour = *n;
@@ -90,7 +92,7 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
 
 	/*Update Velocity*/
-	b.velocity = speed*glm::normalize(newVel);
+	return speed*glm::normalize(newVel);
 }
 
 int main()
@@ -174,16 +176,36 @@ int main()
 			putInHashTable(b);
 		}
 
+		tbb::parallel_for( 
+			tbb::blocked_range<size_t>(0, nrBoids),
+			[&](const tbb::blocked_range<size_t>& r) {
+			for (size_t i = r.begin(); i < r.end(); ++i)
+			{
+				// Calculate new velocities for each boid, move each boid to new pos, update pos given velocity
+				glm::vec3 newVel = updateBoid(boids.at(i));
+				boids[i].velocity = newVel;         
+				boids[i].position += 0.01f * boids[i].velocity; 
+
+				// create model matrix from agent position
+				glm::mat4 model = glm::mat4(1.0f);
+				model = glm::translate(model, boids[i].position);
+				glm::vec3 v = glm::vec3(boids[i].velocity.z, 0, -boids[i].velocity.x);
+				float angle = acos(boids[i].velocity.y / glm::length(boids[i].velocity));
+				model = glm::rotate(model, angle, v);
+
+				// transform each vertex and add them to array
+				renderBoids[i*3] = view * model * glm::vec4(p1, 1.0f);
+				renderBoids[i*3 + 1] = view * model * glm::vec4(p2, 1.0f);
+				renderBoids[i*3 + 2] = view * model * glm::vec4(p3, 1.0f);
+			}
+		} );
+
+
+		/*
 		int i = 0;
 
-		// move each boid to current pos, update pos given velocity
 		for (Boid& b : boids)
-		{
-			// update boid velocity
-			updateBoids(b);
-
-			// move the boid in its facing direction
-			b.position += 0.01f * b.velocity;
+			{
 
 			// create model matrix from agent position
 			glm::mat4 model = glm::mat4(1.0f);
@@ -196,7 +218,8 @@ int main()
 			renderBoids[i++] = view * model * glm::vec4(p1, 1.0f);
 			renderBoids[i++] = view * model * glm::vec4(p2, 1.0f);
 			renderBoids[i++] = view * model * glm::vec4(p3, 1.0f);
-		}
+		}*/
+
 		clearHashTable();
 
 		// bind vertex array
