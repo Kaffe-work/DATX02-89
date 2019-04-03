@@ -107,25 +107,34 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 void drawCrosshair() {
 	GLuint vertexArray, vertexBuffer;
 
-	glm::vec3 top(0.0f, 1.0f, 0.0f); 
-	glm::vec3 mid(0.0f, 0.0f, 0.0f); 
-	glm::vec3 left(-1.0f, 0.0f, 0.0f); 
-	glm::vec3 right(1.0f, 0.0f, 0.0f); 
-	glm::vec3 bot(0.0f, -1.0f, 0.0f); 
+	glm::vec3 top(0.0f, 1.0f*0.1, 0.0f);
+	glm::vec3 mid(0.0f, 0.0f, 0.0f);
+	glm::vec3 left(-1.0f*0.1*screenHeight/screenWidth, 0.0f, 0.0f);
+	glm::vec3 right(1.0f*0.1*screenHeight/screenWidth, 0.0f, 0.0f);
+	glm::vec3 bot(0.0f, -1.0f*0.1, 0.0f);
 
-	std::vector<glm::vec3> crosshair = { mid, left, mid, top, mid, right, mid, bot };
-
-	glLineWidth(10.0f);
+	std::vector<glm::vec3> crosshair = { mid, left, mid, top, mid, right, mid, bot};
+	float line_vertex[] =
+	{
+		0.0f,1.0f,
+		0.0f,0.0f
+	};
 
 	glGenVertexArrays(1, &vertexArray);
 	glGenBuffers(1, &vertexBuffer);
 	glBindVertexArray(vertexArray);
 	glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(crosshair), &crosshair[0], GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(crosshair) * 3 * sizeof(glm::vec3), &crosshair[0], GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
 
 	glDrawArrays(GL_LINES, 0, 8);
+
+	// unbind buffer and vertex array
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
 }
+
 
 int main()
 {
@@ -153,10 +162,7 @@ int main()
 		std::cout << "Failed to initialize GLAD" << std::endl;
 		return -1;
 	}
-
-	// build and compile shader program
-	Shader shader("vert.shader", "frag.shader");
-
+	
 	// create the boids (allocate space and randomize position/velocity by calling constructor)
 	for (int i = 0; i < nrBoids; ++i)
 		boids.push_back(Boid());
@@ -171,7 +177,11 @@ int main()
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
 
-	// use the shader created earlier so we can attach matrices
+	// Build and compile shaders
+	Shader shader("vert.shader", "frag.shader");
+	Shader guiShader("gui.shader", "frag.shader");
+
+	// use (bind) the shader 1 so that we can attach matrices
 	shader.use();
 
 	// instantiate transformation matrices
@@ -188,6 +198,8 @@ int main()
 	// -----------
 	while (!glfwWindowShouldClose(window))
 	{
+		// Need to choose shader since we now have 2
+		shader.use();
 		// print performance to console
 		printPerformance();
 		// if got input, processed here
@@ -247,10 +259,9 @@ int main()
 		// unbind buffer and vertex array
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
-		
+
+		guiShader.use();
 		drawCrosshair();
-
-
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
