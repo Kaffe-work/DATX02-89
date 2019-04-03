@@ -104,6 +104,29 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	b.velocity = speed*glm::normalize(newVel);
 }
 
+void drawCrosshair() {
+	GLuint vertexArray, vertexBuffer;
+
+	glm::vec3 top(0.0f, 1.0f, 0.0f); 
+	glm::vec3 mid(0.0f, 0.0f, 0.0f); 
+	glm::vec3 left(-1.0f, 0.0f, 0.0f); 
+	glm::vec3 right(1.0f, 0.0f, 0.0f); 
+	glm::vec3 bot(0.0f, -1.0f, 0.0f); 
+
+	std::vector<glm::vec3> crosshair = { mid, left, mid, top, mid, right, mid, bot };
+
+	glLineWidth(10.0f);
+
+	glGenVertexArrays(1, &vertexArray);
+	glGenBuffers(1, &vertexBuffer);
+	glBindVertexArray(vertexArray);
+	glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(crosshair), &crosshair[0], GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+
+	glDrawArrays(GL_LINES, 0, 8);
+}
+
 int main()
 {
 	// glfw: initialize and configure
@@ -224,6 +247,10 @@ int main()
 		// unbind buffer and vertex array
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
+		
+		drawCrosshair();
+
+
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
