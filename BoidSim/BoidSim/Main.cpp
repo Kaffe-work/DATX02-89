@@ -114,11 +114,6 @@ void drawCrosshair() {
 	glm::vec3 bot(0.0f, -1.0f*0.1, 0.0f);
 
 	std::vector<glm::vec3> crosshair = { mid, left, mid, top, mid, right, mid, bot};
-	float line_vertex[] =
-	{
-		0.0f,1.0f,
-		0.0f,0.0f
-	};
 
 	glGenVertexArrays(1, &vertexArray);
 	glGenBuffers(1, &vertexBuffer);
