@@ -36,6 +36,10 @@ bool repellLine = false;
 double lastTime = glfwGetTime();
 int nrFrames = 0;
 
+// Vertex Array Object and Vertex Buffer Object (can be reused)
+unsigned int VAO, VBO;
+
+
 // Reference: http://www.opengl-tutorial.org/miscellaneous/an-fps-counter/
 void printPerformance() {
 	// Print if 1 sec has passed since last time
@@ -105,8 +109,6 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 }
 
 void drawCrosshair() {
-	GLuint vertexArray, vertexBuffer;
-
 	glm::vec3 top(0.0f, 1.0f*0.1, 0.0f);
 	glm::vec3 mid(0.0f, 0.0f, 0.0f);
 	glm::vec3 left(-1.0f*0.1*screenHeight/screenWidth, 0.0f, 0.0f);
@@ -115,10 +117,10 @@ void drawCrosshair() {
 
 	std::vector<glm::vec3> crosshair = { mid, left, mid, top, mid, right, mid, bot};
 
-	glGenVertexArrays(1, &vertexArray);
-	glGenBuffers(1, &vertexBuffer);
-	glBindVertexArray(vertexArray);
-	glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+	glGenVertexArrays(1, &VAO);
+	glGenBuffers(1, &VBO);
+	glBindVertexArray(VAO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(crosshair) * 3 * sizeof(glm::vec3), &crosshair[0], GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
@@ -168,7 +170,6 @@ int main()
 	glm::vec3 p3(1.0f, -1.0f, 0.0f);
 
 	// generate vertex array object
-	unsigned int VAO, VBO;
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
 
