@@ -12,6 +12,7 @@
 #include <algorithm>
 #include "tbb/parallel_for.h"
 #include "tbb/task_scheduler_init.h"
+#include <chrono>  // for high_resolution_clock
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -29,8 +30,8 @@ const int nrBoids = 3000;
 std::vector<Boid> boids;
 
 // Boid attributes
-const float MAX_SPEED = 30.0f;
-const float MIN_SPEED = 20.0f;
+const float MAX_SPEED = 100.0f;
+const float MIN_SPEED = 10.0f;
 const float MAX_NOISE = 2.0f;
 bool repellLine = false;
 
@@ -56,6 +57,11 @@ void printPerformance() {
 glm::vec3 getRandomVectorWithChance(int percentage) {
 	bool maybe = percentage == 0 ? false : rand() % (100/percentage) == 0;
 	return glm::vec3(maybe ? rand() % 121 - 60, rand() % 121 - 60, rand() % 21 - 10 : 0, 0, 0);
+}
+
+// If e.g rangePercent is 5 then this will return a number between 0.95 and 1.05
+float getRandomFloatAroundOne(int rangePercent) {
+	return 1.0f + ((rand() % 1001 - 500) % (rangePercent * 10)) / 1000.0f;
 }
 
 glm::vec3 updateBoid(Boid & b) { // Flocking rules are implemented here
@@ -85,9 +91,9 @@ glm::vec3 updateBoid(Boid & b) { // Flocking rules are implemented here
 		separation += (b.position - neighbour.position) * 1.0f/(float)(pow(distance(b.position, neighbour.position),2) + 0.0001); // + 0.0001 is for avoiding divide by zero
 		cohesion += neighbour.position;
 	}
-	alignment = alignment * (1.0f / (std::size(nb) + 1));
-	cohesion = cohesion * (1.0f / std::size(nb)) - b.position;
-	separation = separation * (1.0f / std::size(nb));
+	alignment = alignment * (1.0f / (std::size(nb) + 1)) * getRandomFloatAroundOne(40);
+	cohesion = (cohesion * (1.0f / std::size(nb)) - b.position) * getRandomFloatAroundOne(5);
+	separation = separation * (1.0f / std::size(nb)) * getRandomFloatAroundOne(20);
 
 	/*Repellation - Escape*/
 	//Inverse square function of distance between point of repellation and a boid, from the KTH paper about Sheep and a predator.
@@ -99,7 +105,7 @@ glm::vec3 updateBoid(Boid & b) { // Flocking rules are implemented here
 	}
 	
 	/*Update Velocity*/
-	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + 100.0f*repellation + MAX_NOISE * getRandomVectorWithChance(0.5f);
+	glm::vec3 newVel = 1.33f*alignment + 50.0f*separation + 0.9f*cohesion + 100.0f*repellation + MAX_NOISE * getRandomVectorWithChance(0.5f);
 	float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
 
 	/*Update Velocity*/
