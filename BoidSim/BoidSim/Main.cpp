@@ -26,13 +26,13 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
-const int nrBoids = 3000;
+const int nrBoids = 10000;
 std::vector<Boid> boids;
 
 // Boid attributes
-const float MAX_SPEED = 100.0f;
-const float MIN_SPEED = 10.0f;
-const float MAX_NOISE = 2.0f;
+const float MAX_SPEED = 0.3f;
+const float MAX_ACCELERATION = 0.05f;
+const float SOFTNESS = 5.0f;
 bool repellLine = false;
 
 // Time, used to print performance
@@ -64,52 +64,40 @@ float getRandomFloatAroundOne(int rangePercent) {
 	return 1.0f + ((rand() % 1001 - 500) % (rangePercent * 10)) / 1000.0f;
 }
 
-glm::vec3 updateBoid(Boid & b) { // Flocking rules are implemented here
+glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
 
-	/*Alignment = Velocity Matching*/
-	//Sum the velocities of the neighbours and this boid and average them.
-
-	/*Separation = Collision Avoidance*/
-	//Sum the vectors from all neighbours to this boid.  
-
-	/*Cohesion - Flock Centering*/
-	//Sum the positions of the neighbours and average them, then subtract this boids position
-
-	glm::vec3 alignment = b.velocity;
+	glm::vec3 alignment = glm::vec3(0.0);
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
 	glm::vec3 repellation = glm::vec3(0.0);
-
 	std::vector<Boid*> nb = getNeighbours(b);
-	if (std::size(nb) == 0) { 
-		b.velocity *= glm::clamp(length(b.velocity), MIN_SPEED, MAX_SPEED);
-		return b.velocity;	
-	}
+
 	for (Boid* n : nb) {
 		Boid neighbour = *n;
-		alignment += neighbour.velocity * 4.0f/distance(b.position, neighbour.position);
-		separation += (b.position - neighbour.position) * 1.0f/(float)(pow(distance(b.position, neighbour.position),2) + 0.0001); // + 0.0001 is for avoiding divide by zero
+		alignment += neighbour.velocity;
 		cohesion += neighbour.position;
+		//separation += normalize(b.position - neighbour.position) * SOFTNESS / (pow(distance(b.position, neighbour.position),2) + 0.0001); // + 0.0001 is for avoiding divide by zero
+		separation += (b.position - neighbour.position) / distance(b.position, neighbour.position);
 	}
-	alignment = alignment * (1.0f / (std::size(nb) + 1)) * getRandomFloatAroundOne(40);
-	cohesion = (cohesion * (1.0f / std::size(nb)) - b.position) * getRandomFloatAroundOne(5);
-	separation = separation * (1.0f / std::size(nb)) * getRandomFloatAroundOne(20);
 
-	/*Repellation - Escape*/
-	//Inverse square function of distance between point of repellation and a boid, from the KTH paper about Sheep and a predator.
-	//Point of repellation: A + dot(AP,AB) / dot(AB,AB) * AB
+	if (std::size(nb) > 0) {
+		alignment = normalize(alignment * (1.0f / std::size(nb)) - b.velocity);
+		cohesion = normalize(cohesion * (1.0f / std::size(nb)) - b.position - b.velocity);
+		separation = normalize(separation * (1.0f / std::size(nb)) - b.velocity);
+	}
 	
 	if (repellLine) {
 		glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
-		repellation = normalize(b.position - point)*(1.0f / pow(distance(b.position, point) / 5.0f + 2.0f, 2));
+		//repellation = normalize(b.position - point) / (pow(distance(b.position, point) / SOFTNESS + 2.0f, 2)) - b.velocity;
+		repellation = normalize(b.position - point) * SOFTNESS / (distance(b.position, point)) - b.velocity;
 	}
-	
-	/*Update Velocity*/
-	glm::vec3 newVel = 1.33f*alignment + 50.0f*separation + 0.9f*cohesion + 100.0f*repellation + MAX_NOISE * getRandomVectorWithChance(0.5f);
-	float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
 
-	/*Update Velocity*/
-	return speed*glm::normalize(newVel);
+	glm::vec3 steering = alignment + cohesion + separation + 2.0f*repellation;
+	
+	// Limit acceleration
+	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION); 
+	return magnitude*glm::normalize(steering);
+
 }
 
 int main()
@@ -198,10 +186,10 @@ int main()
 			[&](const tbb::blocked_range<size_t>& r) {
 			for (size_t i = r.begin(); i < r.end(); ++i)
 			{
-				// Calculate new velocities for each boid, move each boid to new pos, update pos given velocity
-				glm::vec3 newVel = updateBoid(boids.at(i));
-				boids[i].velocity = newVel;         
-				boids[i].position += 0.01f * boids[i].velocity; 
+				// Calculate new velocities for each boid, update pos given velocity
+				boids[i].velocity += getSteering(boids.at(i));
+				boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED;
+				boids[i].position += boids[i].velocity; 
 
 				// create model matrix from agent position
 				glm::mat4 model = glm::mat4(1.0f);
@@ -216,26 +204,6 @@ int main()
 				renderBoids[i*3 + 2] = view * model * glm::vec4(p3, 1.0f);
 			}
 		} );
-
-
-		/*
-		int i = 0;
-
-		for (Boid& b : boids)
-			{
-
-			// create model matrix from agent position
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, b.position);
-			glm::vec3 v = glm::vec3(b.velocity.z, 0, -b.velocity.x);
-			float angle = acos(b.velocity.y / glm::length(b.velocity));
-			model = glm::rotate(model, angle, v);
-
-			// transform each vertex and add them to array
-			renderBoids[i++] = view * model * glm::vec4(p1, 1.0f);
-			renderBoids[i++] = view * model * glm::vec4(p2, 1.0f);
-			renderBoids[i++] = view * model * glm::vec4(p3, 1.0f);
-		}*/
 
 		clearHashTable();
 
