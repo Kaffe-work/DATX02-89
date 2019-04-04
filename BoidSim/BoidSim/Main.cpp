@@ -41,7 +41,8 @@ double lastTime = glfwGetTime();
 int nrFrames = 0;
 
 // Vertex Array Object, Vertex/Element Buffer Objects, texture (can be reused)
-unsigned int VAO, VBO, EBO, texture;
+unsigned int VAO, VBO, EBO, tex1, tex2;
+int nrTextures = 0;
 
 
 // Reference: http://www.opengl-tutorial.org/miscellaneous/an-fps-counter/
@@ -113,25 +114,38 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 }
 
 void drawCrosshair() {
-	glm::vec3 top(0.0f, 1.0f*0.1, 0.0f);
-	glm::vec3 mid(0.0f, 0.0f, 0.0f);
-	glm::vec3 left(-1.0f*0.1*screenHeight/screenWidth, 0.0f, 0.0f);
-	glm::vec3 right(1.0f*0.1*screenHeight/screenWidth, 0.0f, 0.0f);
-	glm::vec3 bot(0.0f, -1.0f*0.1, 0.0f);
+	float vertices[] = {
+		// position hand     // texture coords
+	   -0.05f*screenHeight / screenWidth,-0.05f,  0.0f,  0.0f, 0.0f,
+		0.05f*screenHeight / screenWidth,-0.05f,  0.0f,  1.0f, 0.0f,
+		0.05f*screenHeight / screenWidth, 0.05f,  0.0f,  1.0f, 1.0f,
+	   -0.05f*screenHeight / screenWidth, 0.05f,  0.0f,  0.0f, 1.0f
+	};
 
-	std::vector<glm::vec3> crosshair = { mid, left, mid, top, mid, right, mid, bot};
+	unsigned int indices[] = {
+		0, 1, 3,   // first triangle
+		1, 2, 3    // second triangle
+	};
 
 	glBindVertexArray(VAO);
+
+	// For the indices
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(crosshair) * 3 * sizeof(glm::vec3), &crosshair[0], GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+	// position attribute
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 
-	glDrawArrays(GL_LINES, 0, 8);
+	// texture coordinates
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(2);
 
-	// unbind buffer and vertex array
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
+	glBindTexture(GL_TEXTURE_2D, tex2);
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
 
 void drawFire() {
@@ -194,9 +208,29 @@ void drawWeapon() {
 	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(2);
 
+	glBindTexture(GL_TEXTURE_2D, tex1);
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
 
+void createTexture(unsigned int &ref, const char* path) {
+	// Bind texture for gun
+	glBindTexture(GL_TEXTURE_2D, ref);
+	// No repeat, use actual size of picture
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// set texture filtering parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	// load image, create texture
+	int width, height, nrChannels;
+	unsigned char *data = stbi_load(path, &width, &height, &nrChannels, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	stbi_image_free(data);
+}
 
 int main()
 {
@@ -238,30 +272,16 @@ int main()
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
 	glGenBuffers(1, &EBO);
-	glGenTextures(1, &texture);
-
-	// Bind texture for gun
-	glBindTexture(GL_TEXTURE_2D, texture);
-	// No repeat, use actual size of picture
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	// set texture filtering parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	// load image, create texture
-	int width, height, nrChannels;
-	unsigned char *data = stbi_load("rifle.png", &width, &height, &nrChannels, 0); 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	stbi_image_free(data);
-
+	glGenTextures(1, &tex1);
+		
 	// Build and compile shaders
 	Shader shader("vert.shader", "frag.shader");
 	Shader guiShader("gui.shader", "frag.shader");
 	Shader guiShader2("gui.shader", "gui.frag");
+
+	// Create textures
+	createTexture(tex1, "rifle.png");
+	createTexture(tex2, "crosshair.png");
 
 	// use (bind) the shader 1 so that we can attach matrices
 	shader.use();
@@ -343,7 +363,6 @@ int main()
 		glBindVertexArray(0);
 
 		guiShader.use();
-		drawCrosshair();
 		int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
 		state = glfwGetKey(window, GLFW_KEY_SPACE);
 		if (state == GLFW_PRESS) {
@@ -352,6 +371,7 @@ int main()
 
 		guiShader2.use();
 		drawWeapon();
+		drawCrosshair();
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
