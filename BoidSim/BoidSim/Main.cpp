@@ -342,7 +342,7 @@ void processInput(GLFWwindow *window)
 
 	// If left mouse click is depressed, modify yaw and pitch
 	int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-	if (state == GLFW_PRESS) {
+	if (state != GLFW_PRESS) {
 		yaw += deltaX * 0.002;
 		pitch = fmin(pitch + deltaY * 0.002, 0.3f); // max 89 grader
 	}
