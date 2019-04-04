@@ -12,7 +12,7 @@
 #include <algorithm>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
+#include "stb_image.h"
 #include <iostream>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -134,6 +134,35 @@ void drawCrosshair() {
 	glBindVertexArray(0);
 }
 
+void drawFire() {
+	float vertices[] = {
+		// positions         // color
+		0.6f,  -0.2f, 0.0f,  1.0f, 0.0f, 0.0f,
+		0.55f, -0.2f, 0.0f,  1.0f, 0.0f, 0.0f,
+		0.01f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+		0.0f,   0.0f, 0.0f,  1.0f, 0.0f, 0.0f
+	};
+
+	glBindVertexArray(VAO);
+
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+	// position attribute
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+	// color attribute
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	// unbind buffer and vertex array
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+}
+
 void drawWeapon() {
 	float vertices[] = {
 		// position hand     // texture coords
@@ -157,11 +186,13 @@ void drawWeapon() {
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
+	// position attribute
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 	
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
+	// texture coordinates
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(2);
 
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
@@ -313,6 +344,11 @@ int main()
 
 		guiShader.use();
 		drawCrosshair();
+		int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+		state = glfwGetKey(window, GLFW_KEY_SPACE);
+		if (state == GLFW_PRESS) {
+			drawFire();
+		}
 
 		guiShader2.use();
 		drawWeapon();
