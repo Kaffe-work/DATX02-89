@@ -10,6 +10,8 @@
 #include "boid.h"
 #include "spatial_hash.hpp"
 #include <algorithm>
+
+#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include <iostream>
 
@@ -38,8 +40,8 @@ bool repellLine = false;
 double lastTime = glfwGetTime();
 int nrFrames = 0;
 
-// Vertex Array Object and Vertex Buffer Object (can be reused)
-unsigned int VAO, VBO;
+// Vertex Array Object, Vertex/Element Buffer Objects, texture (can be reused)
+unsigned int VAO, VBO, EBO, texture;
 
 
 // Reference: http://www.opengl-tutorial.org/miscellaneous/an-fps-counter/
@@ -119,8 +121,6 @@ void drawCrosshair() {
 
 	std::vector<glm::vec3> crosshair = { mid, left, mid, top, mid, right, mid, bot};
 
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
 	glBindVertexArray(VAO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(crosshair) * 3 * sizeof(glm::vec3), &crosshair[0], GL_STATIC_DRAW);
@@ -137,15 +137,23 @@ void drawCrosshair() {
 void drawWeapon() {
 	float vertices[] = {
 		// position hand     // texture coords
-		0.0f,  0.0f,  0.0f,  1.0f, 1.0f,
+		0.0f,  0.0f,  0.0f,  0.0f, 0.0f,
 		1.0f,  0.0f,  0.0f,	 1.0f, 0.0f,
-	    1.0f, -1.0f,  0.0f,  0.0f, 0.0f,
+	    1.0f, -1.0f,  0.0f,  1.0f, 1.0f,
 		0.0f, -1.0f,  0.0f,  0.0f, 1.0f
 	};
 
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
+	unsigned int indices[] = {
+		0, 1, 3,   // first triangle
+		1, 2, 3    // second triangle
+	};
+
 	glBindVertexArray(VAO);
+	
+	// For the indices
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
@@ -153,39 +161,9 @@ void drawWeapon() {
 	glEnableVertexAttribArray(0);
 	
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(0);
-	unsigned int texture1, texture2;
-	// texture 1
-	// ---------
-	glGenTextures(1, &texture1);
-	glBindTexture(GL_TEXTURE_2D, texture1);
-	// set the texture wrapping parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	// set texture wrapping to GL_REPEAT (default wrapping method)
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	// set texture filtering parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	// load image, create texture and generate mipmaps
-	int width, height, nrChannels;
-	// The FileSystem::getPath(...) is part of the GitHub repository so we can find files on any IDE/platform; replace it with your own image path.
-	unsigned char *data = stbi_load(FileSystem::getPath("resources/textures/container.jpg").c_str(), &width, &height, &nrChannels, 0);
-	if (data)
-	{
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-		glGenerateMipmap(GL_TEXTURE_2D);
-	}
-	else
-	{
-		std::cout << "Failed to load texture" << std::endl;
-	}
-	stbi_image_free(data);
+	glEnableVertexAttribArray(1);
 
-
-	glDrawArrays(GL_LINES, 0, 8);
-
-	// unbind buffer and vertex array
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
 
 
@@ -225,13 +203,32 @@ int main()
 	glm::vec3 p2(0.0f, 1.0f, 0.0f);
 	glm::vec3 p3(1.0f, -1.0f, 0.0f);
 
-	// generate vertex array object
+	// generate things
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
+	glGenBuffers(1, &EBO);
+	glGenTextures(1, &texture);
+
+	// Bind texture for gun
+	glBindTexture(GL_TEXTURE_2D, texture);
+	// No repeat, use actual size of picture
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// set texture filtering parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	// load image, create texture
+	int width, height, nrChannels;
+	unsigned char *data = stbi_load("rifle.png", &width, &height, &nrChannels, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+	stbi_image_free(data);
 
 	// Build and compile shaders
 	Shader shader("vert.shader", "frag.shader");
 	Shader guiShader("gui.shader", "frag.shader");
+	Shader guiShader2("gui.shader", "gui.frag");
 
 	// use (bind) the shader 1 so that we can attach matrices
 	shader.use();
@@ -314,6 +311,9 @@ int main()
 
 		guiShader.use();
 		drawCrosshair();
+
+		guiShader2.use();
+		drawWeapon();
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
