@@ -137,10 +137,10 @@ void drawCrosshair() {
 void drawWeapon() {
 	float vertices[] = {
 		// position hand     // texture coords
-		0.0f,  0.0f,  0.0f,  0.0f, 0.0f,
-		1.0f,  0.0f,  0.0f,	 1.0f, 0.0f,
-	    1.0f, -1.0f,  0.0f,  1.0f, 1.0f,
-		0.0f, -1.0f,  0.0f,  0.0f, 1.0f
+		0.1f,  0.0f,  0.0f,  0.0f, 0.0f,
+		1.2f,  0.0f,  0.0f,	 1.0f, 0.0f,
+	    1.2f, -1.0f,  0.0f,  1.0f, 1.0f,
+		0.1f, -1.0f,  0.0f,  0.0f, 1.0f
 	};
 
 	unsigned int indices[] = {
@@ -220,8 +220,10 @@ int main()
 
 	// load image, create texture
 	int width, height, nrChannels;
-	unsigned char *data = stbi_load("rifle.png", &width, &height, &nrChannels, 0);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+	unsigned char *data = stbi_load("rifle.png", &width, &height, &nrChannels, 0); 
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	stbi_image_free(data);
 
