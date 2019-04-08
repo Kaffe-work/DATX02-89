@@ -8,6 +8,7 @@
 #include "Shader.h"
 #include <list>
 #include "boid.h"
+#include "obstacle.h"
 #include "spatial_hash.hpp"
 #include <algorithm>
 #include "tbb/parallel_for.h"
@@ -26,14 +27,19 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
-const int nrBoids = 10000;
+const int nrBoids = 5000;
 std::vector<Boid> boids;
 
 // Boid attributes
 const float MAX_SPEED = 0.3f;
 const float MAX_ACCELERATION = 0.05f;
-const float SOFTNESS = 5.0f;
+const float SOFTNESS = 10.0f;
 bool repellLine = false;
+
+// Obstacles
+std::vector<Obstacle> walls;
+
+
 
 // Time, used to print performance
 double lastTime = glfwGetTime();
@@ -70,6 +76,7 @@ glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
 	glm::vec3 repellation = glm::vec3(0.0);
+	glm::vec3 avoidance = glm::vec3(0.0);
 	std::vector<Boid*> nb = getNeighbours(b);
 
 	for (Boid* n : nb) {
@@ -85,6 +92,13 @@ glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
 		cohesion = normalize(cohesion * (1.0f / std::size(nb)) - b.position - b.velocity);
 		separation = normalize(separation * (1.0f / std::size(nb)) - b.velocity);
 	}
+
+	//Avoid obstacles
+	for (Obstacle o : walls) {
+		glm::vec3 v = b.position - o.point;
+		float distance = SOFTNESS / glm::dot(v, o.normal);
+		avoidance += normalize(o.normal)*distance - b.velocity;
+	}
 	
 	if (repellLine) {
 		glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
@@ -92,7 +106,9 @@ glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
 		repellation = normalize(b.position - point) * SOFTNESS / (distance(b.position, point)) - b.velocity;
 	}
 
-	glm::vec3 steering = alignment + cohesion + separation + 2.0f*repellation;
+	
+
+	glm::vec3 steering = alignment + cohesion + separation + 10.0f*avoidance + 2.0f*repellation;
 	
 	// Limit acceleration
 	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION); 
@@ -132,8 +148,11 @@ int main()
 
 	// create the boids (allocate space and randomize position/velocity by calling constructor)
 	for (int i = 0; i < nrBoids; ++i)
-		boids.push_back(Boid());
+		boids.push_back(Boid(100));
 	
+	// create walls
+	walls = getWalls();
+
 	// one vector for each vertex
 	glm::vec3 p1(-1.0f, -1.0f, 0.0f);
 	glm::vec3 p2(0.0f, 1.0f, 0.0f);
