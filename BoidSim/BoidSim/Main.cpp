@@ -9,11 +9,12 @@
 #include <list>
 #include "boid.h"
 #include "obstacle.h"
+#include "forceobject.h"
+#include "levelfactory.h"
 #include "spatial_hash.hpp"
 #include <algorithm>
 #include "tbb/parallel_for.h"
 #include "tbb/task_scheduler_init.h"
-#include <chrono>  // for high_resolution_clock
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -28,18 +29,20 @@ double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
 const int nrBoids = 5000;
+
+// Which level
+const int level = 1;
+
+// Level attributes
 std::vector<Boid> boids;
+std::vector<Obstacle> walls;
+std::vector<ForceObject> objects;
 
 // Boid attributes
 const float MAX_SPEED = 0.3f;
 const float MAX_ACCELERATION = 0.05f;
 const float SOFTNESS = 10.0f;
 bool repellLine = false;
-
-// Obstacles
-std::vector<Obstacle> walls;
-
-
 
 // Time, used to print performance
 double lastTime = glfwGetTime();
@@ -77,6 +80,7 @@ glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
 	glm::vec3 cohesion = glm::vec3(0.0);
 	glm::vec3 repellation = glm::vec3(0.0);
 	glm::vec3 avoidance = glm::vec3(0.0);
+	glm::vec3 chemistry = glm::vec3(0.0);
 	std::vector<Boid*> nb = getNeighbours(b);
 
 	for (Boid* n : nb) {
@@ -84,7 +88,7 @@ glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
 		alignment += neighbour.velocity;
 		cohesion += neighbour.position;
 		//separation += normalize(b.position - neighbour.position) * SOFTNESS / (pow(distance(b.position, neighbour.position),2) + 0.0001); // + 0.0001 is for avoiding divide by zero
-		separation += (b.position - neighbour.position) / distance(b.position, neighbour.position);
+		separation += normalize(b.position - neighbour.position) / distance(b.position, neighbour.position);
 	}
 
 	if (std::size(nb) > 0) {
@@ -93,22 +97,36 @@ glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
 		separation = normalize(separation * (1.0f / std::size(nb)) - b.velocity);
 	}
 
-	//Avoid obstacles
+	//Avoid walls
 	for (Obstacle o : walls) {
 		glm::vec3 v = b.position - o.point;
 		float distance = SOFTNESS / glm::dot(v, o.normal);
 		avoidance += normalize(o.normal)*distance - b.velocity;
 	}
+
+	//Avoid/steer towards a force point
+	for (ForceObject f : objects) {
+		if (f.attractive) {
+			chemistry -= normalize(b.position - f.position) / distance(b.position, f.position);
+		}
+		else {
+			chemistry += normalize(b.position - f.position) / distance(b.position, f.position);
+		}
+	}
+	if (std::size(objects) > 0) {
+		chemistry = normalize(chemistry * (1.0f / std::size(objects)) - b.velocity);
+	}
+
 	
 	if (repellLine) {
 		glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
 		//repellation = normalize(b.position - point) / (pow(distance(b.position, point) / SOFTNESS + 2.0f, 2)) - b.velocity;
-		repellation = normalize(b.position - point) * SOFTNESS / (distance(b.position, point)) - b.velocity;
+		repellation = normalize(b.position - point) * pow(SOFTNESS,2) / (distance(b.position, point)) - b.velocity;
 	}
 
 	
 
-	glm::vec3 steering = alignment + cohesion + separation + 10.0f*avoidance + 2.0f*repellation;
+	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 10.0f*avoidance + 10.0f*chemistry + repellation;
 	
 	// Limit acceleration
 	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION); 
@@ -146,12 +164,10 @@ int main()
 	// build and compile shader program
 	Shader shader("vert.shader", "frag.shader");
 
-	// create the boids (allocate space and randomize position/velocity by calling constructor)
-	for (int i = 0; i < nrBoids; ++i)
-		boids.push_back(Boid(100));
-	
-	// create walls
-	walls = getWalls();
+	//Initialise boids, walls, objects
+	boids = getLevelBoids(level, nrBoids);
+	walls = getLevelWalls(level);
+	objects = getLevelObjects(level);
 
 	// one vector for each vertex
 	glm::vec3 p1(-1.0f, -1.0f, 0.0f);

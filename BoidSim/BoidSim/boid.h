@@ -13,6 +13,9 @@ struct Boid {
 	Boid(int size)
 		: position(rand() % size - size/2, rand() % size - size/2, rand() % size - size/2), velocity(rand() % size - size / 2, rand() % size - size / 2, rand() % size - size / 2) { }
 
+	Boid(int size, glm::vec3 offset)
+	: position(rand() % size - size / 2 + offset.x, rand() % size - size / 2 + offset.y, rand() % size - size / 2 + offset.z), velocity(rand() % size - size / 2, rand() % size - size / 2, rand() % size - size / 2) { }
+
 };
 
 #endif

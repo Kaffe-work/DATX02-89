@@ -11,9 +11,8 @@ struct Obstacle {
 		: point(p1, p2, p3), normal(n1, n2, n3) {}
 };
 
-std::vector<Obstacle> getWalls() {
+std::vector<Obstacle> getWalls(float roomSize) {
 	std::vector<Obstacle> walls;
-	float roomSize = 550;
 	float s = roomSize/2.0f;
 
 	walls.push_back(Obstacle(-s, 0, 0, -1, 0, 0));
