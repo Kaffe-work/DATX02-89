@@ -26,27 +26,26 @@ double xpos, ypos; // cursor position
 // setup
 const unsigned int screenWidth = 1280, screenHeight = 720;
 
+// camera settings
 glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
-// How many boids on screen
-const int nrBoids = 1000;
+// boids settings
+const int nrBoids = 10000;
 std::vector<Boid> boids;
-
-// Boid attributes
 const float MAX_SPEED = 30.0f;
 const float MIN_SPEED = 20.0f;
 const float MAX_NOISE = 2.0f;
 bool repellLine = false;
 
-// Time, used to print performance
-double lastTime = glfwGetTime();
-int nrFrames = 0;
-
 // Vertex Array Object, Vertex/Element Buffer Objects, texture (can be reused)
 unsigned int VAO, VBO, EBO, tex1, tex2;
-int nrTextures = 0;
+
+// For ImGui
+bool show_demo_window = true;
+bool show_another_window = false;
+ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 // If e.g. percentage = 1 => vec3(0,0,0) will be returned with 99% probability
 glm::vec3 getRandomVectorWithChance(int percentage) {
@@ -102,7 +101,7 @@ void updateBoids(Boid & b) { // Flocking rules are implemented here
 	b.velocity = speed*glm::normalize(newVel);
 }
 
-void drawCrosshair() {
+void renderCrosshair() {
 	float vertices[] = {
 		// position hand     // texture coords
 	   -0.05f*screenHeight / screenWidth,-0.05f,  0.0f,  0.0f, 0.0f,
@@ -137,7 +136,7 @@ void drawCrosshair() {
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }
 
-void drawFire() {
+void renderLaser() {
 	float vertices[] = {
 		// positions         // color
 		0.6f,  -0.2f, 0.0f,  1.0f, 0.0f, 0.0f,
@@ -166,7 +165,7 @@ void drawFire() {
 
 }
 
-void drawWeapon() {
+void renderWeapon() {
 	float vertices[] = {
 		// position hand     // texture coords
 		0.1f,  0.0f,  0.0f,  0.0f, 0.0f,
@@ -221,6 +220,29 @@ void createTexture(unsigned int &ref, const char* path) {
 	stbi_image_free(data);
 }
 
+void createImGuiWindow()
+{
+	static float f = 0.0f;
+	static int counter = 0;
+
+	ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+	ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+	ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+	ImGui::Checkbox("Another Window", &show_another_window);
+
+	ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+	ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+
+	if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+		counter++;
+	ImGui::SameLine();
+	ImGui::Text("counter = %d", counter);
+
+	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+	ImGui::End();
+}
+
 int main()
 {
 	// glfw: initialize and configure
@@ -265,8 +287,8 @@ int main()
 		
 	// Build and compile shaders
 	Shader shader("vert.shader", "frag.shader");
-	Shader guiShader("gui.shader", "frag.shader");
-	Shader guiShader2("gui.shader", "gui.frag");
+	Shader laserShader("gui.shader", "frag.shader");
+	Shader guiShader("gui.shader", "gui.frag");
 
 	// Create textures
 	createTexture(tex1, "rifle.png");
@@ -290,10 +312,6 @@ int main()
 	ImGui::StyleColorsDark();
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 330"); // glsl version
-
-	bool show_demo_window = true;
-	bool show_another_window = false;
-	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 	// render loop
 	// -----------
@@ -364,41 +382,19 @@ int main()
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
 
-		guiShader.use();
+		laserShader.use();
 		int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
 		state = glfwGetKey(window, GLFW_KEY_SPACE);
 		if (state == GLFW_PRESS) {
-			drawFire();
+			renderLaser();
 		}
 
-		guiShader2.use();
-		drawWeapon();
-		drawCrosshair();
+		guiShader.use();
+		renderWeapon();
+		renderCrosshair();
 
-		// Simple ImGui window. We use a Begin/End pair to created a named window.
-		{
-			static float f = 0.0f;
-			static int counter = 0;
-
-			ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-			ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-			ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-			ImGui::Checkbox("Another Window", &show_another_window);
-
-			ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-			ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-			if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-				counter++;
-			ImGui::SameLine();
-			ImGui::Text("counter = %d", counter);
-
-			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-			ImGui::End();
-		}
-
-		// ImGui render
+		// ImGui create/render window
+		createImGuiWindow();
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
