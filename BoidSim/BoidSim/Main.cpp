@@ -48,21 +48,6 @@ int nrFrames = 0;
 unsigned int VAO, VBO, EBO, tex1, tex2;
 int nrTextures = 0;
 
-
-// Reference: http://www.opengl-tutorial.org/miscellaneous/an-fps-counter/
-void printPerformance() {
-	// Print if 1 sec has passed since last time
-	double currentTime = glfwGetTime();
-	nrFrames++;
-	if (currentTime - lastTime >= 1.0) {
-		// print number of agents only once
-		// print data and reset
-		std::cout << "avg draw time: " << 1000 / double(nrFrames) << "ms, fps: " << nrFrames << std::endl;
-		nrFrames = 0;
-		lastTime += 1.0;
-	}
-}
-
 // If e.g. percentage = 1 => vec3(0,0,0) will be returned with 99% probability
 glm::vec3 getRandomVectorWithChance(int percentage) {
 	bool maybe = percentage == 0 ? false : rand() % (100/percentage) == 0;
@@ -316,8 +301,6 @@ int main()
 	{
 		// Need to choose shader since we now have 2
 		shader.use();
-		// print performance to console
-		printPerformance();
 		// if got input, processed here
 		processInput(window);
 
