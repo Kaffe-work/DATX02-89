@@ -2,14 +2,14 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_transform.hpp>  
 #include <glm/gtc/type_ptr.hpp>
 #include <vector>
 #include "Shader.h"
 #include <list>
-#include <boid.h>
-#include "spatial_hash.hpp"
+#include "boid.h"
 #include <algorithm>
+#include "kernel.h"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -23,8 +23,8 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
-const int nrBoids = 1000;
-std::vector<Boid> boids;
+const int nrBoids = NR_BOIDS;
+Boid* boids;
 
 // Boid attributes
 const float MAX_SPEED = 30.0f;
@@ -51,50 +51,13 @@ void printPerformance() {
 
 // If e.g. percentage = 1 => vec3(0,0,0) will be returned with 99% probability
 glm::vec3 getRandomVectorWithChance(int percentage) {
-	bool maybe = percentage == 0 ? false : rand() % (100/percentage) == 0;
+	bool maybe = percentage == 0 ? false : rand() % (100 / percentage) == 0;
 	return glm::vec3(maybe ? rand() % 121 - 60, rand() % 121 - 60, rand() % 21 - 10 : 0, 0, 0);
-}
-
-void updateBoids(Boid & b) { // Flocking rules are implemented here
-
-	/*Alignment = Velocity Matching*/
-	//Sum the velocities of the neighbours and this boid and average them.
-
-	/*Separation = Collision Avoidance*/
-	//Sum the vectors from all neighbours to this boid. 
-
-	/*Cohesion - Flock Centering*/
-	//Sum the positions of the neighbours and average them, then subtract this boids position
-
-	glm::vec3 alignment = b.velocity;
-	glm::vec3 separation = glm::vec3(0.0);
-	glm::vec3 cohesion = glm::vec3(0.0);
-
-	std::vector<Boid*> nb = getNeighbours(b);
-	if (std::size(nb) == 0) { 
-		b.velocity *= glm::clamp(length(b.velocity), MIN_SPEED, MAX_SPEED);
-		return;	
-	}
-	for (Boid* n : nb) {
-		Boid neighbour = *n;
-		alignment += neighbour.velocity * 4.0f/distance(b.position, neighbour.position);
-		separation += (b.position - neighbour.position) * 1.0f/(float)(pow(distance(b.position, neighbour.position),2) + 0.0001); // + 0.0001 is for avoiding divide by zero
-		cohesion += neighbour.position;
-	}
-	alignment = alignment * (1.0f / (std::size(nb) + 1));
-	cohesion = cohesion * (1.0f / std::size(nb)) - b.position;
-	separation = separation * (1.0f / std::size(nb));
-	
-	/*Update Velocity*/
-	glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion + MAX_NOISE * getRandomVectorWithChance(20);
-	float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
-
-	/*Update Velocity*/
-	b.velocity = speed*glm::normalize(newVel);
 }
 
 int main()
 {
+	boids = *(initBoidsOnGPU(boids));
 	// glfw: initialize and configure
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -125,17 +88,34 @@ int main()
 
 	// create the boids (allocate space and randomize position/velocity by calling constructor)
 	for (int i = 0; i < nrBoids; ++i)
-		boids.push_back(Boid());
-	
+		boids[i] = Boid();
+
 	// one vector for each vertex
 	glm::vec3 p1(-1.0f, -1.0f, 0.0f);
 	glm::vec3 p2(0.0f, 1.0f, 0.0f);
 	glm::vec3 p3(1.0f, -1.0f, 0.0f);
 
-	// generate vertex array object
-	unsigned int VAO, VBO;
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
+
+	//BEGIN CUDA EXPERIMENT HERE 
+	unsigned int VAO;
+	glGenVertexArrays(1, &VAO); // is this needed?
+
+	GLuint positionsVBO;
+	struct cudaGraphicsResource* positionsVBO_CUDA;
+
+	// Explicitly set device 0
+	cudaSetDeviceWrapper(0);
+
+	// Create buffer object and register it with CUDA
+	glGenBuffers(1, &positionsVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, positionsVBO);
+	unsigned int size = nrBoids * 3 * sizeof(glm::vec3);
+	glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	cudaGraphicsGLRegisterBufferWrapper(&positionsVBO_CUDA, positionsVBO);
+	// END CUDA EXPERIMENT HERE
+
+
 
 	// use the shader created earlier so we can attach matrices
 	shader.use();
@@ -147,8 +127,9 @@ int main()
 	// set projection matrix as uniform (attach to bound shader)
 	shader.setMatrix("projection", projection);
 
-	// instantiate array for boids
-	glm::vec3 renderBoids[nrBoids*3];
+
+
+
 
 	// render loop
 	// -----------
@@ -169,41 +150,34 @@ int main()
 		glClearColor(0.90f, 0.95f, 0.96f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		// Put all boids in the hash table so we can use it in the next loop
-		for (Boid& b : boids){
-			putInHashTable(b);
-		}
 
 		int i = 0;
+		
+		
+		step(); // one step in the simulation
+		
 
-		// move each boid to current pos, update pos given velocity
-		for (Boid& b : boids)
-		{
-			// update boid velocity
-			updateBoids(b);
 
-			// move the boid in its facing direction
-			b.position += 0.01f * b.velocity;
+		// Map buffer object for writing from CUDA
+		glm::vec3* renderBoids;
+		size_t num_bytes;
+		mapBufferObjectCuda(&positionsVBO_CUDA, &num_bytes, &renderBoids);
+	
 
-			// create model matrix from agent position
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, b.position);
-			glm::vec3 v = glm::vec3(b.velocity.z, 0, -b.velocity.x);
-			float angle = acos(b.velocity.y / glm::length(b.velocity));
-			model = glm::rotate(model, angle, v);
+		//Execute kernel HERE 
+		prepareBoidRender(boids, renderBoids, projection, view);
+		printCUDAError();
 
-			// transform each vertex and add them to array
-			renderBoids[i++] = view * model * glm::vec4(p1, 1.0f);
-			renderBoids[i++] = view * model * glm::vec4(p2, 1.0f);
-			renderBoids[i++] = view * model * glm::vec4(p3, 1.0f);
-		}
-		clearHashTable();
+		// Unmap buffer object
+		cudaGraphicsUnmapResourcesWrapper(&positionsVBO_CUDA);
 
-		// bind vertex array
-		glBindVertexArray(VAO);
+		// Render from buffer object
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 		// bind buffer object and boid array
-		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 3, &renderBoids[0], GL_STATIC_DRAW);
+		glBindVertexArray(VAO);
+		glBindBuffer(GL_ARRAY_BUFFER, positionsVBO);
+
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 		glEnableVertexAttribArray(0);
 
@@ -214,17 +188,27 @@ int main()
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
 
+
+
+
+
+
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
-
+	/*
 	// optional: de-allocate all resources once they've outlived their purpose:
 	glDeleteVertexArrays(1, &VAO);
 	glDeleteBuffers(1, &VBO);
+	*/
+
+	cudaGraphicsUnregisterResourceWrapper(positionsVBO_CUDA);
+	glDeleteBuffers(1, &positionsVBO);
 
 	// glfw: terminate, clearing all previously allocated GLFW resources.
 	glfwTerminate();
+	deinitBoidsOnGPU();
 	return 0;
 }
 
