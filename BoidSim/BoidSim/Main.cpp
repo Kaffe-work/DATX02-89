@@ -1,7 +1,5 @@
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
-#include <stb_image.h>
-#include <iostream>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -11,6 +9,10 @@
 #include "boid.h"
 #include "spatial_hash.hpp"
 #include <algorithm>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+#include <iostream>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -164,9 +166,66 @@ int main()
 		return -1;
 	}
 
+	// load background (cubemap)
+	std::vector<std::string> faces
+	{
+		    "skybox/right.jpg",
+			"skybox/left.jpg",
+			"skybox/top.jpg",
+			"skybox/bottom.jpg",
+			"skybox/front.jpg",
+			"skybox/back.jpg"
+	};
+	unsigned int cubemapTexture = loadCubemap(faces);
+
+	float skyboxVertices[] = {
+		// positions          
+		-1.0f,  1.0f, -1.0f,
+		-1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f,
+		1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		-1.0f,  1.0f, -1.0f,
+		1.0f,  1.0f, -1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		1.0f, -1.0f,  1.0f
+	};
+
 	// build and compile shader program
 	Shader shader("vert.shader", "frag.shader");
-	Shader shader("cube.vert", "cube.frag");
+	Shader skybox("cube.vert", "cube.frag");
 
 	// create the boids (allocate space and randomize position/velocity by calling constructor)
 	for (int i = 0; i < nrBoids; ++i)
@@ -182,6 +241,16 @@ int main()
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
 
+	// skybox VAO
+	unsigned int skyboxVAO, skyboxVBO;
+	glGenVertexArrays(1, &skyboxVAO);
+	glGenBuffers(1, &skyboxVBO);
+	glBindVertexArray(skyboxVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
 	// use the shader created earlier so we can attach matrices
 	shader.use();
 
@@ -191,6 +260,10 @@ int main()
 	projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 1000.0f);
 	// set projection matrix as uniform (attach to bound shader)
 	shader.setMatrix("projection", projection);
+
+	skybox.use();
+	skybox.setMatrix("projection", projection);
+	skybox.setInt("skybox", 0);
 
 	// instantiate array for boids
 	glm::vec3 renderBoids[nrBoids*3];
@@ -211,8 +284,8 @@ int main()
 		view = glm::lookAt(cameraPos, cameraPos + cameraDir, glm::vec3(0.0f, 1.0f, 0.0f));
 		// clear whatever was on screen last frame
 
-		glClearColor(0.90f, 0.95f, 0.96f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
+		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		// Put all boids in the hash table so we can use it in the next loop
 		for (Boid& b : boids){
@@ -244,6 +317,7 @@ int main()
 		}
 		clearHashTable();
 
+		shader.use();
 		// bind vertex array
 		glBindVertexArray(VAO);
 		// bind buffer object and boid array
@@ -258,6 +332,14 @@ int main()
 		// unbind buffer and vertex array
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
+
+		glDepthFunc(GL_LEQUAL);
+		skybox.use();
+		// ... set view and projection matrix
+		glBindVertexArray(skyboxVAO);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glDepthFunc(GL_LESS); // set depth function back to default
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
