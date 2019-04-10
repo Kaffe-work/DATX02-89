@@ -16,6 +16,7 @@ Ignore all files/folders in same directory as the .gitignore file
 !BoidSim/BoidSim/*.cpp
 !BoidSim/BoidSim/*.cu
 !BoidSim/BoidSim/*.cuh
+!BoidSim/BoidSim/*.obj
 
 # Whitelist demo folder
 !examples/
