@@ -127,29 +127,18 @@ __global__ void detectCellIndexChange(int cellStarts[], int cellEnds[], uint64_t
     
     int cellID = cellIDs[i];
     int nextCellID = cellIDs[i+1];
-    #ifdef DEBUG
-    printf("Checking index %d which has value %d \n", i, cellID);
-    #endif
+
     // TODO: determine if these if/else statements causes thread branching -> worse performance
     if(i == 0){ 
         // This is the case for the first element in the boid array 
         cellStarts[cellID] = i; 
-        #ifdef DEBUG
-        printf("Cell start was detected: from %d \n", cellID);
-        #endif
     } else if (i == nrBoids - 1){ 
         // This is the case for the last element in the boid array
         cellEnds[cellID] = i;
-        #ifdef DEBUG
-        printf("Cell end was detected: from %d \n", cellID);
-        #endif
         return;
     } 
     if (cellID != nextCellID){
         // A change in cell index was detected!
-        #ifdef DEBUG
-        printf("A cell change was detected: from %d to %d \n", cellID, nextCellID);
-        #endif
         cellStarts[nextCellID] = i + 1;
         cellEnds[cellID] = i;
     }
@@ -166,7 +155,7 @@ __global__ void computeVelocities(Boid boids[], int cellStarts[], int cellEnds[]
     Boid b = boids[i]; // current boid whose neighbours we're checking
     // initialize default values for each rule
     glm::vec3 alignment = b.velocity;
-	glm::vec3 separation = glm::vec3(0.0);
+    glm::vec3 separation = glm::vec3(0.0);
     glm::vec3 cohesion = glm::vec3(0.0);
     // Decide which cell current boid is in
     glm::vec3 cell = getCell(b.position);
@@ -201,7 +190,7 @@ __global__ void computeVelocities(Boid boids[], int cellStarts[], int cellEnds[]
     alignment = alignment * (1.0f / (neighbourCount + 1));
     // TODO: This is a debug quickfix, should not be an if here because it causes thread branching
     if( neighbourCount != 0){
-	    cohesion = cohesion * (1.0f / (neighbourCount + 0.0000000001f)) - b.position; // We need 0.0000000001 here to avoid divide by zero
+        cohesion = cohesion * (1.0f / (neighbourCount + 0.0000000001f)) - b.position; // We need 0.0000000001 here to avoid divide by zero
     }
     separation = separation * (1.0f / (neighbourCount + 0.0000000001f));
     
@@ -209,11 +198,8 @@ __global__ void computeVelocities(Boid boids[], int cellStarts[], int cellEnds[]
     glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion;
     float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
 
-	/* Update Velocity */
     newVelocities[i] = 0.01f*speed*glm::normalize(newVel);
-    #ifdef DEBUG
-    printf("Boid %d has %d neighbours\n", i, neighbourCount);
-    #endif
+
 } 
 
 // Adds the new velocity value to the boids position, and copies the new velocity into the boid struct
@@ -230,9 +216,9 @@ __global__ void updatePosAndVel(Boid boids[], glm::vec3 newVelocities[], int nrB
     newPos.y = newPos.y < CELL_SIZE ? MAX_COORD - CELL_SIZE : newPos.y;
     newPos.z = newPos.z < CELL_SIZE ? MAX_COORD - CELL_SIZE : newPos.z;
 
-	newPos.x = newPos.x > MAX_COORD - CELL_SIZE ? CELL_SIZE : newPos.x;
-	newPos.y = newPos.y > MAX_COORD - CELL_SIZE ? CELL_SIZE : newPos.y;
-	newPos.z = newPos.z > MAX_COORD - CELL_SIZE ? CELL_SIZE : newPos.z;
+    newPos.x = newPos.x > MAX_COORD - CELL_SIZE ? CELL_SIZE : newPos.x;
+    newPos.y = newPos.y > MAX_COORD - CELL_SIZE ? CELL_SIZE : newPos.y;
+    newPos.z = newPos.z > MAX_COORD - CELL_SIZE ? CELL_SIZE : newPos.z;
 
     boids[i].position = newPos;
     boids[i].velocity = newVelocities[i];
@@ -275,8 +261,8 @@ __global__ void prepareBoidRenderKernel(Boid* boids, glm::vec3* renderBoids, glm
     Boid b = boids[i];
     
     // one vector for each vertex
-	const glm::vec3 p1(-1.0f, -1.0f, 0.0f);
-	const glm::vec3 p2(0.0f, 1.0f, 0.0f);
+    const glm::vec3 p1(-1.0f, -1.0f, 0.0f);
+    const glm::vec3 p2(0.0f, 1.0f, 0.0f);
     const glm::vec3 p3(1.0f, -1.0f, 0.0f);
     
     // create model matrix from agent position
