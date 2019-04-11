@@ -24,10 +24,19 @@ You might need this before compiling:
 PATH=$PATH:/chalmers/sw/sup64/cuda_toolkit-9.0.176.4/nvvm/bin
 PATH=$PATH:/chalmers/sw/sup64/cuda_toolkit-9.0.176.4/bin
 
-There are many optimization flags. See here:
-https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#precision-related-compiler-flags
+Compile on Windows 10 machine with CUDA 9.1 toolkit available:
+nvcc kernel.cu -c -o kernel_win -use_fast_math -m64 -arch=sm_61 -Xcudafe --diag_suppress=2865 -ccbin [path to your cl.exe]
+This will produce an .obj file that can be included in your project along with kernel.h
+Path to cl.exe is probably something like "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\cl.exe"
+If you use Visual Studio 2017 You might need to install "vc++ 14.0" addon for it to work
 
 */ 
+
+/* 
+MAJOR TODO: Replacing glm datatypes with CUDA's can improve performance, 
+for example vec3 -> float3, distance() -> norm3df()
+*/ 
+
 
 /* A useful macro for displaying CUDA errors */ 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -50,13 +59,13 @@ using namespace cub;
 
 // These arrays hold the boids
 extern Boid* boids;
-Boid* boidsSorted = NULL;
+Boid* boidsAlt = NULL;
 
 // These arrays hold the (Z-order/morton encoded) cell ids
 uint64_t* cellIDs = NULL;
 uint64_t* cellIDsAlt = NULL;
 
-// Array with all the boids. boidsSorted is a alternate array needed for the radixSort
+// Array with all the boids. boidsAlt is a alternate array needed for the radixSort
 int* boidIDs = NULL;
 int* boidIDsAlt = NULL;
 
@@ -92,6 +101,7 @@ int* cellStartIndex;
 int* cellEndIndex;
 
 // Get the cell based on the boids position
+// TODO: floorf() on the individual coordinates might be faster!?
 inline __device__ glm::vec3 getCell(glm::vec3 pos){
     return glm::floor(pos * (1.0f/CELL_SIZE));
 }
@@ -145,10 +155,11 @@ __global__ void detectCellIndexChange(int cellStarts[], int cellEnds[], uint64_t
 }
 
 // Update boid with index n
+// TODO: This function can probably be shorted, but it can wait since it's not updated with the most recent features anyway
 // WARNING! VERY MUCH TODO: RIGHT NOW IT CHECKS OUTSIDE WORLD BOUNDARIES FOR BOIDS
 // IN EDGE CELLS, THIS WILL CAUSE ARRAY OUT OF-BOUNDS EXCEPTIONS
 __global__ void computeVelocities(Boid boids[], int cellStarts[], int cellEnds[], uint64_t cellIDs[]
-                                , int nrBoids, glm::vec3 newVelocities[]){
+                                , int nrBoids, Boid boidsUpdated[]){
     int i = threadIdx.x + (blockIdx.x * blockDim.x);
     if(i >= nrBoids) return;
     int neighbourCount = 0;
@@ -188,27 +199,20 @@ __global__ void computeVelocities(Boid boids[], int cellStarts[], int cellEnds[]
     }
     // Divide by number of neighbours to get average values
     alignment = alignment * (1.0f / (neighbourCount + 1));
-    // TODO: This is a debug quickfix, should not be an if here because it causes thread branching
+    // TODO: This is a debug quickfix, should not be an if here because it causes thread branching?
     if( neighbourCount != 0){
         cohesion = cohesion * (1.0f / (neighbourCount + 0.0000000001f)) - b.position; // We need 0.0000000001 here to avoid divide by zero
     }
     separation = separation * (1.0f / (neighbourCount + 0.0000000001f));
     
     /*Update Velocity*/
-    glm::vec3 newVel = alignment + 50.0f*separation + 0.9f*cohesion;
+    glm::vec3 newVel = alignment + 35.0f*separation + 0.9f*cohesion;
     float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
+    newVel = 0.01f*speed*glm::normalize(newVel);
+    boidsUpdated[i].velocity = newVel;
 
-    newVelocities[i] = 0.01f*speed*glm::normalize(newVel);
-
-} 
-
-// Adds the new velocity value to the boids position, and copies the new velocity into the boid struct
-// TODO: maybe we should place boid pos/vel in separate arrays, that way we don't have to copy the new velocities
-// just swap pointers between two velocity arrays? 
-__global__ void updatePosAndVel(Boid boids[], glm::vec3 newVelocities[], int nrBoids){
-    int i = threadIdx.x + (blockIdx.x * blockDim.x);
-    if(i >= nrBoids) return;
-    glm::vec3 newPos = boids[i].position + newVelocities[i];
+    /* Update position */
+    glm::vec3 newPos = b.position + newVel;
     // TODO: Right now we wrap the boids around a cube
     // TODO: This is just a quickfix. Just assigning MAX_COORD is not exactly accurate
     // Also, is a modulus operation possibly cheaper?
@@ -220,9 +224,8 @@ __global__ void updatePosAndVel(Boid boids[], glm::vec3 newVelocities[], int nrB
     newPos.y = newPos.y > MAX_COORD - CELL_SIZE ? CELL_SIZE : newPos.y;
     newPos.z = newPos.z > MAX_COORD - CELL_SIZE ? CELL_SIZE : newPos.z;
 
-    boids[i].position = newPos;
-    boids[i].velocity = newVelocities[i];
-}
+    boidsUpdated[i].position = newPos;
+} 
 
 // Sets all the cell start/end indices to -1, so no old values is left
 // TODO: only reset the ones that actually has had boids in it?
@@ -246,13 +249,11 @@ __global__ void calculateBoidHash(int n, uint64_t currentHashArray[], Boid b[]){
 }
 
 // After boid IDs are sorted the array with the actual boid structs are sorted accordingly with this function
-__global__ void rearrangeBoids(int boidIDs[], Boid boids[], Boid boidsSorted[], int nrBoids){
+__global__ void rearrangeBoids(int boidIDs[], Boid boids[], Boid boidsAlt[], int nrBoids){
     int i = threadIdx.x + (blockIdx.x * blockDim.x);
     if (i >= nrBoids) return;
-    boidsSorted[i] = boids[boidIDs[i]]; // copy over boids to the boidsSorted array, which in the end will be sorted
+    boidsAlt[i] = boids[boidIDs[i]]; // copy over boids to the boidsAlt array, which in the end will be sorted
 }
-
-void printCUDAError();
 
 __global__ void prepareBoidRenderKernel(Boid* boids, glm::vec3* renderBoids, glm::mat4 projection, glm::mat4 view){
     int i = threadIdx.x + (blockIdx.x * blockDim.x);
@@ -320,7 +321,7 @@ __host__ Boid** initBoidsOnGPU(Boid* boidsArr){
     gpuErrchk( cudaMallocManaged((void**)&newVelocities, sizeof(glm::vec3) * NR_BOIDS) );
     // Allocate memory for the boids
     gpuErrchk( cudaMallocManaged((void**)&boids, sizeof(Boid) * NR_BOIDS) );
-    gpuErrchk( cudaMallocManaged((void**)&boidsSorted, sizeof(Boid) * NR_BOIDS) );
+    gpuErrchk( cudaMallocManaged((void**)&boidsAlt, sizeof(Boid) * NR_BOIDS) );
     // Allocate memory for the buffer arrays
     gpuErrchk( cudaMallocManaged((void**)&cellIDs, sizeof(*cellIDs) * NR_BOIDS) );
     gpuErrchk( cudaMallocManaged((void**)&cellIDsAlt, sizeof(*cellIDsAlt) * NR_BOIDS) );
@@ -342,7 +343,7 @@ __host__ void deinitBoidsOnGPU(){
     cudaFree(boidIDsBuf.d_buffers[1]);
     cudaFree(newVelocities);
     cudaFree(boids);
-    cudaFree(boidsSorted);
+    cudaFree(boidsAlt);
 }
 
 
@@ -396,19 +397,16 @@ void step(){
     cudaFree(d_temp_storage);
 
     // Rearrange the actual boids based on the sorted boidIDs
-    rearrangeBoids <<< numBlocksBoids, blockSize >>> (boidIDsBuf.Current(), boids, boidsSorted, NR_BOIDS);
-    
+    rearrangeBoids <<< numBlocksBoids, blockSize >>> (boidIDsBuf.Current(), boids, boidsAlt, NR_BOIDS);
+    // After rearranging the boids, we now work on the boidsAlt
+
     // Check were cellID changes occurs in the sorted boids array
     detectCellIndexChange <<< numBlocksBoids, blockSize >>> (cellStartIndex, cellEndIndex, cellIDsBuf.Current(), NR_BOIDS);
 
     // Update boid velocities based on the rules
-    computeVelocities <<< numBlocksBoids, blockSize >>> (boidsSorted, cellStartIndex, cellEndIndex, cellIDsBuf.Current(), NR_BOIDS, newVelocities);
+    computeVelocities <<< numBlocksBoids, blockSize >>> (boidsAlt, cellStartIndex, cellEndIndex, cellIDsBuf.Current(), NR_BOIDS, boids);
     
-    // Copy boid velocities from temporary velocity storage to boid array
-    updatePosAndVel <<< numBlocksBoids, blockSize >>> (boidsSorted, newVelocities, NR_BOIDS);
-
     // Swap the boids array pointer, so 'boids' now points to a sorted array
     cudaDeviceSynchronize(); // TODO: is this call necessary?
-    std::swap(boids, boidsSorted);
     
 }
