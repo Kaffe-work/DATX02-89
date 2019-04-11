@@ -53,15 +53,15 @@ extern Boid* boids;
 Boid* boidsSorted = NULL;
 
 // These arrays hold the (Z-order/morton encoded) cell ids
-uint64_t* boidCellIDs = NULL;
-uint64_t* boidCellIDsAlt = NULL;
+uint64_t* cellIDs = NULL;
+uint64_t* cellIDsAlt = NULL;
 
 // Array with all the boids. boidsSorted is a alternate array needed for the radixSort
 int* boidIDs = NULL;
 int* boidIDsAlt = NULL;
 
 // Doublebuffers containing boidIDs and cellIDs, these are used by the radix sort function
-DoubleBuffer<uint64_t> boidCellIDsBuf;
+DoubleBuffer<uint64_t> cellIDsBuf;
 DoubleBuffer<int> boidIDsBuf;
 
 // Calculate the maximum value of Morton encoded (Z-ordered) cell ids
@@ -322,12 +322,12 @@ __host__ Boid** initBoidsOnGPU(Boid* boidsArr){
     gpuErrchk( cudaMallocManaged((void**)&boids, sizeof(Boid) * NR_BOIDS) );
     gpuErrchk( cudaMallocManaged((void**)&boidsSorted, sizeof(Boid) * NR_BOIDS) );
     // Allocate memory for the buffer arrays
-    gpuErrchk( cudaMallocManaged((void**)&boidCellIDs, sizeof(*boidCellIDs) * NR_BOIDS) );
-    gpuErrchk( cudaMallocManaged((void**)&boidCellIDsAlt, sizeof(*boidCellIDsAlt) * NR_BOIDS) );
+    gpuErrchk( cudaMallocManaged((void**)&cellIDs, sizeof(*cellIDs) * NR_BOIDS) );
+    gpuErrchk( cudaMallocManaged((void**)&cellIDsAlt, sizeof(*cellIDsAlt) * NR_BOIDS) );
     gpuErrchk( cudaMallocManaged((void**)&boidIDs, sizeof(*boids) * NR_BOIDS) );
     gpuErrchk( cudaMallocManaged((void**)&boidIDsAlt, sizeof(*boidIDsAlt) * NR_BOIDS) );
 
-    boidCellIDsBuf = DoubleBuffer<uint64_t>(boidCellIDs, boidCellIDsAlt);
+    cellIDsBuf = DoubleBuffer<uint64_t>(cellIDs, cellIDsAlt);
     boidIDsBuf = DoubleBuffer<int>(boidIDs, boidIDsAlt);
     return &boids; 
 }
@@ -336,8 +336,8 @@ __host__ void deinitBoidsOnGPU(){
     // Free memory
     cudaFree(cellStartIndex);
     cudaFree(cellEndIndex);
-    cudaFree(boidCellIDsBuf.d_buffers[0]);
-    cudaFree(boidCellIDsBuf.d_buffers[1]);
+    cudaFree(cellIDsBuf.d_buffers[0]);
+    cudaFree(cellIDsBuf.d_buffers[1]);
     cudaFree(boidIDsBuf.d_buffers[0]);
     cudaFree(boidIDsBuf.d_buffers[1]);
     cudaFree(newVelocities);
@@ -374,7 +374,7 @@ void step(){
     initBoidIDs <<< numBlocksBoids, blockSize >>> (boidIDsBuf.Current(), NR_BOIDS);
     
     // Calculate cell IDs for every boid
-    calculateBoidHash <<< numBlocksBoids, blockSize >>> (NR_BOIDS, boidCellIDsBuf.Current(), boids);
+    calculateBoidHash <<< numBlocksBoids, blockSize >>> (NR_BOIDS, cellIDsBuf.Current(), boids);
     
     // reset cell ranges
     resetCellRanges <<< numBlocksCells, blockSize >>> (cellStartIndex, cellEndIndex, NR_CELLS);
@@ -384,14 +384,14 @@ void step(){
     size_t   temp_storage_bytes = 0;
     
     // Determine temporary storage need
-    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes, boidCellIDsBuf, boidIDsBuf, NR_BOIDS);
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes, cellIDsBuf, boidIDsBuf, NR_BOIDS);
 
     // Allocate temporary storage
     // TODO: cudaMalloc is expensive, is it possible to do this particular allocation only once and reuse it? 
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
     
     // Run sorting operation
-    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes, boidCellIDsBuf, boidIDsBuf, NR_BOIDS);
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes, cellIDsBuf, boidIDsBuf, NR_BOIDS);
     
     cudaFree(d_temp_storage);
 
@@ -399,10 +399,10 @@ void step(){
     rearrangeBoids <<< numBlocksBoids, blockSize >>> (boidIDsBuf.Current(), boids, boidsSorted, NR_BOIDS);
     
     // Check were cellID changes occurs in the sorted boids array
-    detectCellIndexChange <<< numBlocksBoids, blockSize >>> (cellStartIndex, cellEndIndex, boidCellIDsBuf.Current(), NR_BOIDS);
+    detectCellIndexChange <<< numBlocksBoids, blockSize >>> (cellStartIndex, cellEndIndex, cellIDsBuf.Current(), NR_BOIDS);
 
     // Update boid velocities based on the rules
-    computeVelocities <<< numBlocksBoids, blockSize >>> (boidsSorted, cellStartIndex, cellEndIndex, boidCellIDsBuf.Current(), NR_BOIDS, newVelocities);
+    computeVelocities <<< numBlocksBoids, blockSize >>> (boidsSorted, cellStartIndex, cellEndIndex, cellIDsBuf.Current(), NR_BOIDS, newVelocities);
     
     // Copy boid velocities from temporary velocity storage to boid array
     updatePosAndVel <<< numBlocksBoids, blockSize >>> (boidsSorted, newVelocities, NR_BOIDS);
