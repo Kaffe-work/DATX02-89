@@ -27,9 +27,9 @@ const int nrBoids = NR_BOIDS;
 Boid* boids;
 
 // Boid attributes
-const float MAX_SPEED = 30.0f;
-const float MIN_SPEED = 20.0f;
-const float MAX_NOISE = .5f;
+const float MAX_SPEED = 0.3f;
+const float MAX_ACCELERATION = 0.05f;
+const float SOFTNESS = 5.0f;
 
 // Time, used to print performance
 double lastTime = glfwGetTime();

@@ -37,6 +37,8 @@ MAJOR TODO: Replacing glm datatypes with CUDA's can improve performance,
 for example vec3 -> float3, distance() -> norm3df()
 */ 
 
+// Enable timing here
+// #define TIMING
 
 /* A useful macro for displaying CUDA errors */ 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -206,7 +208,7 @@ __global__ void computeVelocities(Boid boids[], int cellStarts[], int cellEnds[]
     separation = separation * (1.0f / (neighbourCount + 0.0000000001f));
     
     /*Update Velocity*/
-    glm::vec3 newVel = alignment + 35.0f*separation + 0.9f*cohesion;
+    glm::vec3 newVel = alignment + 20.0f*separation + 0.9f*cohesion;
     float speed = glm::clamp(length(newVel), MIN_SPEED, MAX_SPEED); // limit speed
     newVel = 0.01f*speed*glm::normalize(newVel);
     boidsUpdated[i].velocity = newVel;
@@ -239,13 +241,10 @@ __global__ void resetCellRanges(int cellStarts[], int cellEnds[], int nrCells){
 
 // Stores the Morton code/Z-order value for each boid, based on the coordinates of the 
 // cell which the boid currently is in
-__global__ void calculateBoidHash(int n, uint64_t currentHashArray[], Boid b[]){
-    int index = threadIdx.x;
-    int stride = blockDim.x;
-    for (int i = index; i < n; i += stride){
-        glm::vec3 cell = getCell(b[i].position);
-        currentHashArray[i] = bitInterlaceMagic((int)cell.x, (int)cell.y, (int)cell.z);
-    }
+__global__ void calculateCellID(int n, uint64_t cellIDs[], Boid b[], int nrBoids){
+    int i = threadIdx.x + (blockIdx.x * blockDim.x);
+    glm::vec3 cell = getCell(b[i].position);
+    cellIDs[i] = bitInterlaceMagic((int)cell.x, (int)cell.y, (int)cell.z);
 }
 
 // After boid IDs are sorted the array with the actual boid structs are sorted accordingly with this function
@@ -371,19 +370,64 @@ void cudaSetDeviceWrapper(int n){
 }
 
 void step(){
+    
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    
+    #ifdef TIMING
+    cudaEventRecord(start);
+    #endif 
+    
     // Initialize boid id's
     initBoidIDs <<< numBlocksBoids, blockSize >>> (boidIDsBuf.Current(), NR_BOIDS);
     
+    #ifdef TIMING
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("initBoids: %f\n", milliseconds);
+    #endif 
+
+
+    #ifdef TIMING
+    cudaEventRecord(start);
+    #endif 
+
     // Calculate cell IDs for every boid
-    calculateBoidHash <<< numBlocksBoids, blockSize >>> (NR_BOIDS, cellIDsBuf.Current(), boids);
+    calculateCellID <<< numBlocksBoids, blockSize >>> (NR_BOIDS, cellIDsBuf.Current(), boids, NR_BOIDS);
     
+    #ifdef TIMING
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("calculateCellID: %f\n", milliseconds);
+    #endif 
+
+
+    #ifdef TIMING
+    cudaEventRecord(start);
+    #endif 
+
     // reset cell ranges
     resetCellRanges <<< numBlocksCells, blockSize >>> (cellStartIndex, cellEndIndex, NR_CELLS);
     
+    #ifdef TIMING
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("resetCellRanges: %f\n", milliseconds);
+    #endif 
+
     // Determine temporary device storage requirements
     void     *d_temp_storage = NULL;
     size_t   temp_storage_bytes = 0;
     
+    #ifdef TIMING
+    cudaEventRecord(start);
+    #endif 
+
     // Determine temporary storage need
     cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes, cellIDsBuf, boidIDsBuf, NR_BOIDS);
 
@@ -396,15 +440,56 @@ void step(){
     
     cudaFree(d_temp_storage);
 
+    #ifdef TIMING
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("Sorting: %f\n", milliseconds);
+    #endif 
+
+    #ifdef TIMING
+    cudaEventRecord(start);
+    #endif 
+
     // Rearrange the actual boids based on the sorted boidIDs
     rearrangeBoids <<< numBlocksBoids, blockSize >>> (boidIDsBuf.Current(), boids, boidsAlt, NR_BOIDS);
     // After rearranging the boids, we now work on the boidsAlt
 
+    #ifdef TIMING
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("rearrangeBoids: %f\n", milliseconds);
+    #endif 
+
+
+    #ifdef TIMING
+    cudaEventRecord(start);
+    #endif 
+
     // Check were cellID changes occurs in the sorted boids array
     detectCellIndexChange <<< numBlocksBoids, blockSize >>> (cellStartIndex, cellEndIndex, cellIDsBuf.Current(), NR_BOIDS);
 
+    #ifdef TIMING
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("detectCellIndexChange: %f\n", milliseconds);
+    #endif 
+
+    #ifdef TIMING
+    cudaEventRecord(start);
+    #endif 
+
     // Update boid velocities based on the rules
     computeVelocities <<< numBlocksBoids, blockSize >>> (boidsAlt, cellStartIndex, cellEndIndex, cellIDsBuf.Current(), NR_BOIDS, boids);
+    
+    #ifdef TIMING
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("computeVelocities: %f\n\n", milliseconds);
+    #endif 
     
     // Swap the boids array pointer, so 'boids' now points to a sorted array
     cudaDeviceSynchronize(); // TODO: is this call necessary?
