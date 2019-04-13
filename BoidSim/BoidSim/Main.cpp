@@ -28,7 +28,7 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
-const int nrBoids = 5000;
+const int nrBoids = 1000, nrPredators = 5;
 
 // Which level
 const int level = 1;
@@ -73,60 +73,139 @@ float getRandomFloatAroundOne(int rangePercent) {
 	return 1.0f + ((rand() % 1001 - 500) % (rangePercent * 10)) / 1000.0f;
 }
 
-glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
-
+glm::vec3 getSteeringPredator(Boid & b) {
 	glm::vec3 alignment = glm::vec3(0.0);
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
-	glm::vec3 repellation = glm::vec3(0.0);
-	glm::vec3 avoidance = glm::vec3(0.0);
-	glm::vec3 chemistry = glm::vec3(0.0);
+	glm::vec3 avoidplane = glm::vec3(0.0);
+	glm::vec3 hunt = glm::vec3(0.0);
 	std::vector<Boid*> nb = getNeighbours(b);
+	std::vector<Boid> prey;
+	std::vector<Boid> predators;
 
 	for (Boid* n : nb) {
 		Boid neighbour = *n;
-		alignment += neighbour.velocity;
-		cohesion += neighbour.position;
-		//separation += normalize(b.position - neighbour.position) * SOFTNESS / (pow(distance(b.position, neighbour.position),2) + 0.0001); // + 0.0001 is for avoiding divide by zero
-		separation += normalize(b.position - neighbour.position) / distance(b.position, neighbour.position);
+		if (neighbour.isPredator) {
+			predators.push_back(neighbour);
+		}
+		else {
+			prey.push_back(neighbour);
+		}
 	}
 
-	if (std::size(nb) > 0) {
-		alignment = normalize(alignment * (1.0f / std::size(nb)) - b.velocity);
-		cohesion = normalize(cohesion * (1.0f / std::size(nb)) - b.position - b.velocity);
-		separation = normalize(separation * (1.0f / std::size(nb)) - b.velocity);
+	for (Boid n : predators) {
+		alignment += n.velocity;
+		cohesion += n.position;
+		separation += normalize(b.position - n.position) / distance(b.position, n.position);
+	}
+
+	if (std::size(predators) > 0) {
+		alignment = normalize(alignment * (1.0f / std::size(predators)) - b.velocity);
+		cohesion = normalize(cohesion * (1.0f / std::size(predators)) - b.position - b.velocity);
+		separation = normalize(separation * (1.0f / std::size(predators)) - b.velocity);
 	}
 
 	//Avoid walls
 	for (Obstacle o : walls) {
 		glm::vec3 v = b.position - o.point;
 		float distance = SOFTNESS / glm::dot(v, o.normal);
-		avoidance += normalize(o.normal)*distance - b.velocity;
+		avoidplane += normalize(o.normal)*distance - b.velocity;
+	}
+
+	//Hunt
+	if (size(prey) > 0) {
+		Boid closestPrey = prey[0];
+		for (Boid o : prey) {
+			if (distance(closestPrey.position, b.position) > distance(o.position, b.position)) {
+				closestPrey = o;
+			}
+		}
+		hunt = normalize(closestPrey.position - b.position - b.velocity);
+	}
+
+
+	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 10.0f*avoidplane + 50.0f*hunt;
+
+	// Limit acceleration
+	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION);
+	return magnitude * glm::normalize(steering);
+}
+
+
+glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
+
+	glm::vec3 alignment = glm::vec3(0.0);
+	glm::vec3 separation = glm::vec3(0.0);
+	glm::vec3 cohesion = glm::vec3(0.0);
+	glm::vec3 avoidline = glm::vec3(0.0);
+	glm::vec3 avoidplane = glm::vec3(0.0);
+	glm::vec3 avoidattractpoint = glm::vec3(0.0);
+	glm::vec3 flee = glm::vec3(0.0);
+	std::vector<Boid*> nb = getNeighbours(b);
+	std::vector<Boid> prey;
+	std::vector<Boid> predators;
+
+	for (Boid* n : nb) {
+		Boid neighbour = *n;
+		if (neighbour.isPredator) {
+			predators.push_back(neighbour);
+		}
+		else {
+			prey.push_back(neighbour);
+		}
+	}
+
+	for (Boid n : prey) {
+		alignment += n.velocity;
+		cohesion += n.position;
+		separation += normalize(b.position - n.position) / distance(b.position, n.position);
+	}
+
+	if (std::size(prey) > 0) {
+		alignment = normalize(alignment * (1.0f / std::size(prey)) - b.velocity);
+		cohesion = normalize(cohesion * (1.0f / std::size(prey)) - b.position - b.velocity);
+		separation = normalize(separation * (1.0f / std::size(prey)) - b.velocity);
+	}
+
+	//Avoid walls
+	for (Obstacle o : walls) {
+		glm::vec3 v = b.position - o.point;
+		float distance = SOFTNESS / glm::dot(v, o.normal);
+		avoidplane += normalize(o.normal)*distance - b.velocity;
 	}
 
 	//Avoid/steer towards a force point
 	for (ForceObject f : objects) {
 		if (f.attractive) {
-			chemistry -= normalize(b.position - f.position) / distance(b.position, f.position);
+			avoidattractpoint -= normalize(b.position - f.position) / distance(b.position, f.position);
 		}
 		else {
-			chemistry += normalize(b.position - f.position) / distance(b.position, f.position);
+			avoidattractpoint += normalize(b.position - f.position) / distance(b.position, f.position);
 		}
 	}
 	if (std::size(objects) > 0) {
-		chemistry = normalize(chemistry * (1.0f / std::size(objects)) - b.velocity);
+		avoidattractpoint = normalize(avoidattractpoint * (1.0f / std::size(objects)) - b.velocity);
 	}
 
 	
 	if (repellLine) {
 		glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
 		//repellation = normalize(b.position - point) / (pow(distance(b.position, point) / SOFTNESS + 2.0f, 2)) - b.velocity;
-		repellation = normalize(b.position - point) * pow(SOFTNESS,2) / (distance(b.position, point)) - b.velocity;
+		avoidline = normalize(b.position - point) * pow(SOFTNESS,2) / (distance(b.position, point)) - b.velocity;
 	}
 
+	//Flee predators
+	if (size(predators) > 0) {
+		for (Boid n : predators) {
+			flee += 1.0f/n.position;
+		}
+		flee = - normalize(flee * (1.0f / std::size(prey)) - b.position - b.velocity);
+
+	}
+	
 	
 
-	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 10.0f*avoidance + 10.0f*chemistry + repellation;
+	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 10.0f*avoidplane + 10.0f*avoidattractpoint + avoidline + 10.0f*flee;
 	
 	// Limit acceleration
 	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION); 
@@ -165,7 +244,7 @@ int main()
 	Shader shader("vert.shader", "frag.shader");
 
 	//Initialise boids, walls, objects
-	boids = getLevelBoids(level, nrBoids);
+	boids = getLevelBoids(level, nrBoids, nrPredators);
 	walls = getLevelWalls(level);
 	objects = getLevelObjects(level);
 
@@ -222,9 +301,17 @@ int main()
 			for (size_t i = r.begin(); i < r.end(); ++i)
 			{
 				// Calculate new velocities for each boid, update pos given velocity
-				boids[i].velocity += getSteering(boids.at(i));
+				if (boids[i].isPredator) {
+					boids[i].velocity += getSteeringPredator(boids.at(i));
+					boids[i].position += boids[i].velocity;
+				}
+				else {
+					boids[i].velocity += getSteeringPrey(boids.at(i));
+				}
 				boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED;
-				boids[i].position += boids[i].velocity; 
+				boids[i].position += boids[i].velocity;
+				
+				
 
 				// create model matrix from agent position
 				glm::mat4 model = glm::mat4(1.0f);
