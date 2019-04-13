@@ -34,10 +34,10 @@ double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
 
-const int nrBoids = 100, nrPredators = 5;
+const int nrBoids = 500, nrPredators = 0;
 
 // Which level
-const int level = 2;
+const int level = 1;
 
 // Level attributes
 std::vector<Boid> boids;
@@ -70,6 +70,10 @@ float getRandomFloatAroundOne(int rangePercent) {
 }
 
 glm::vec3 getSteeringPredator(Boid & b) {
+	if (!b.isAlive) {
+		return glm::vec3(0.0);
+	}
+
 	glm::vec3 alignment = glm::vec3(0.0);
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
@@ -81,11 +85,13 @@ glm::vec3 getSteeringPredator(Boid & b) {
 
 	for (Boid* n : nb) {
 		Boid neighbour = *n;
-		if (neighbour.isPredator) {
-			predators.push_back(neighbour);
-		}
-		else {
-			prey.push_back(neighbour);
+		if (neighbour.isAlive) {
+			if (neighbour.isPredator) {
+				predators.push_back(neighbour);
+			}
+			else {
+				prey.push_back(neighbour);
+			}
 		}
 	}
 
@@ -130,6 +136,10 @@ glm::vec3 getSteeringPredator(Boid & b) {
 
 glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 
+	if (!b.isAlive) {
+		return glm::vec3(0.0);
+	}
+
 	glm::vec3 alignment = glm::vec3(0.0);
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
@@ -142,17 +152,19 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	std::vector<Boid> prey;
 	std::vector<Boid> predators;
 
-	//Flocking rules
 	for (Boid* n : nb) {
 		Boid neighbour = *n;
-		if (neighbour.isPredator) {
-			predators.push_back(neighbour);
-		}
-		else {
-			prey.push_back(neighbour);
+		if (neighbour.isAlive) {
+			if (neighbour.isPredator) {
+				predators.push_back(neighbour);
+			}
+			else {
+				prey.push_back(neighbour);
+			}
 		}
 	}
 
+	//Flocking rules
 	for (Boid n : prey) {
 		alignment += n.velocity;
 		cohesion += n.position;
@@ -173,9 +185,13 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 
 	}
 
-	//Avoid/steer towards an obstaclepoint
+	//Avoid/steer towards an obstaclepoint, and "Exit (die)"
 	for (ObstaclePoint f : objects) {
 		if (f.attractive) {
+			if (distance(b.position,f.position) < 5.0f){
+				b.isAlive = false;
+				return glm::vec3(0.0);
+			}
 			pointforce -= normalize(b.position - f.position) / distance(b.position, f.position);
 		}
 		else {
@@ -189,18 +205,27 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	//Avoid player controlled line
 	if (repellLine) {
 		glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
+		if (distance(b.position, point) < 5.0f) {
+			b.isAlive = false;
+			return glm::vec3(0.0);
+		}
 		lineforce = normalize(b.position - point) * pow(SOFTNESS, 2) / (distance(b.position, point)) - b.velocity;
 	}
 
-	//Flee predators
+
+	//Flee predators and check death
 	if (size(predators) > 0) {
 		for (Boid n : predators) {
 			flee += 1.0f/n.position;
+			if (distance(n.position, b.position) < 10.0f) {
+				b.isAlive = false;
+				return glm::vec3(0.0);
+			}
 		}
-		flee = - normalize(flee * (1.0f / std::size(prey)) - b.position - b.velocity);
+		flee = - normalize(flee * (1.0f / std::size(predators)) - b.position - b.velocity);
 	}
-
-	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 10.0f*planeforce + 10.0f*pointforce + lineforce + flee;
+	
+	glm::vec3 steering = alignment + cohesion + 1.5f*separation + 10.0f*planeforce + 10.0f*pointforce + lineforce + flee;
 	
 	// Limit acceleration
 	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION); 
@@ -560,15 +585,21 @@ int main()
 		for (int i = 0; i < nrBoids; i++)
 			{
 
+			float allColour = 1.0f, redColour = 0.0f;
+			if (!boids[i].isAlive)
+				redColour = 1.0f;
+
 				// Calculate new velocities for each boid, update pos given velocity
 				if (boids[i].isPredator){
 					boids[i].velocity += getSteeringPredator(boids.at(i));
+					boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED*2.0f;
+					allColour = 0.0f;
 				}
 				else {
 					boids[i].velocity += getSteeringPrey(boids.at(i));
+					boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED;
 				}
 				
-				boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED;
 				boids[i].position += boids[i].velocity;
 				
 
@@ -580,22 +611,12 @@ int main()
 				model = glm::rotate(model, angle, v);
 
 				// transform each vertex and add them to array
-				if (!boids[i].isPredator) {
 					renderBoids[i * 6] = view * model * glm::vec4(p1, 1.0f);
-					renderBoids[i * 6 + 1] = glm::vec3(1.0f, 1.0f, 1.0f); // color vertex 1
+					renderBoids[i * 6 + 1] = glm::vec3(allColour, allColour - redColour, allColour - redColour); // color vertex 1
 					renderBoids[i * 6 + 2] = view * model * glm::vec4(p2, 1.0f);
-					renderBoids[i * 6 + 3] = glm::vec3(1.0f, 1.0f, 1.0f); // color vertex 2
+					renderBoids[i * 6 + 3] = glm::vec3(allColour, allColour - redColour, allColour - redColour); // color vertex 2
 					renderBoids[i * 6 + 4] = view * model * glm::vec4(p3, 1.0f);
-					renderBoids[i * 6 + 5] = glm::vec3(1.0f, 1.0f, 1.0f); // color vertex 3
-				}
-				else {
-					renderBoids[i * 6] = view * model * glm::vec4(p1, 1.0f);
-					renderBoids[i * 6 + 1] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 1
-					renderBoids[i * 6 + 2] = view * model * glm::vec4(p2, 1.0f);
-					renderBoids[i * 6 + 3] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 2
-					renderBoids[i * 6 + 4] = view * model * glm::vec4(p3, 1.0f);
-					renderBoids[i * 6 + 5] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 3
-				}
+					renderBoids[i * 6 + 5] = glm::vec3(allColour, allColour - redColour, allColour - redColour); // color vertex 3
 			}
 
 		clearHashTable();

@@ -15,7 +15,7 @@ std::vector<ObstaclePlane> getLevelWalls(int level)
 	switch (level)
 	{
 	default: 
-		walls = getWalls(400);
+		walls = getWalls(550);
 		break;
 	}
 
@@ -47,9 +47,10 @@ std::vector<ObstaclePoint> getLevelObjects(int level)
 
 	switch (level)
 	{
+	case 1:
+		break;
 	default:
-		objects.push_back(ObstaclePoint(100, 0, 0, true));
-		objects.push_back(ObstaclePoint(-100, 0, 0, false));
+		objects.push_back(ObstaclePoint(0, 0, 0, true));
 		break;
 	}
 
