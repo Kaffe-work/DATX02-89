@@ -8,8 +8,8 @@
 #include "Shader.h"
 #include <list>
 #include "boid.h"
-#include "obstacle.h"
-#include "forceobject.h"
+#include "obstaclepoint.h"
+#include "obstacleplane.h"
 #include "levelfactory.h"
 #include "spatial_hash.hpp"
 #include <algorithm>
@@ -78,11 +78,12 @@ glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
 	glm::vec3 alignment = glm::vec3(0.0);
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
-	glm::vec3 repellation = glm::vec3(0.0);
-	glm::vec3 avoidance = glm::vec3(0.0);
-	glm::vec3 chemistry = glm::vec3(0.0);
+	glm::vec3 lineforce = glm::vec3(0.0);
+	glm::vec3 planeforce = glm::vec3(0.0);
+	glm::vec3 pointforce = glm::vec3(0.0);
 	std::vector<Boid*> nb = getNeighbours(b);
 
+	//Flocking rules
 	for (Boid* n : nb) {
 		Boid neighbour = *n;
 		alignment += neighbour.velocity;
@@ -97,36 +98,33 @@ glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
 		separation = normalize(separation * (1.0f / std::size(nb)) - b.velocity);
 	}
 
-	//Avoid walls
+	//Avoid planes
 	for (Obstacle o : walls) {
 		glm::vec3 v = b.position - o.point;
 		float distance = SOFTNESS / glm::dot(v, o.normal);
-		avoidance += normalize(o.normal)*distance - b.velocity;
+		planeforce += normalize(o.normal)*distance - b.velocity;
 	}
 
-	//Avoid/steer towards a force point
+	//Avoid/steer towards an obstaclepoint
 	for (ForceObject f : objects) {
 		if (f.attractive) {
-			chemistry -= normalize(b.position - f.position) / distance(b.position, f.position);
+			pointforce -= normalize(b.position - f.position) / distance(b.position, f.position);
 		}
 		else {
-			chemistry += normalize(b.position - f.position) / distance(b.position, f.position);
+			pointforce += normalize(b.position - f.position) / distance(b.position, f.position);
 		}
 	}
 	if (std::size(objects) > 0) {
-		chemistry = normalize(chemistry * (1.0f / std::size(objects)) - b.velocity);
+		pointforce = normalize(pointforce * (1.0f / std::size(objects)) - b.velocity);
 	}
 
-	
+	//Avoid player controlled line
 	if (repellLine) {
 		glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
-		//repellation = normalize(b.position - point) / (pow(distance(b.position, point) / SOFTNESS + 2.0f, 2)) - b.velocity;
-		repellation = normalize(b.position - point) * pow(SOFTNESS,2) / (distance(b.position, point)) - b.velocity;
+		lineforce = normalize(b.position - point) * pow(SOFTNESS,2) / (distance(b.position, point)) - b.velocity;
 	}
 
-	
-
-	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 10.0f*avoidance + 10.0f*chemistry + repellation;
+	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 10.0f*planeforce + 10.0f*pointforce + lineforce;
 	
 	// Limit acceleration
 	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION); 

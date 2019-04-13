@@ -2,8 +2,8 @@
 #define levelfactory_h
 
 #include "boid.h"
-#include "obstacle.h"
-#include "forceobject.h"
+#include "obstaclepoint.h"
+#include "obstacleplane.h"
 #include <glm/glm.hpp>
 #include <vector>
 
