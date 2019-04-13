@@ -393,16 +393,23 @@ int main()
 	objects = getLevelObjects(level);
 
 	// one vector for each vertex
+	int points[] = {
+		-1.0f, 1.0f, 0.0f,
+		0.0f, 1.5f, sqrt(3) / 3,
+		1.0f, -1.0f, 0.0f,
+		0.0f, -1.0f, sqrt(3)
+	};
+
 	glm::vec3 p0(-1.0f, -1.0f, 0.0f);
 	glm::vec3 p1(0.0f, 1.5f, sqrt(3)/3);
 	glm::vec3 p2(1.0f, -1.0f, 0.0f);
 	glm::vec3 p3(0.0f, -1.0f, sqrt(3));
 
 	unsigned int indices[] = {  
-	0, 1, 2,  
-	0, 3, 1,    
-	1, 3, 2,    
-	0, 2, 3
+	0, 1, 2  
+	//0, 3, 1,    
+	//1, 3, 2,    
+	//0, 2, 3
 	};
 
 	// generate things
@@ -446,7 +453,7 @@ int main()
 	skybox.setMatrix("projection", projection);
 
 	// instantiate array for boids
-	glm::vec3 renderBoids[nrBoids*3*2]; // Each boid has three points and RGB color
+	glm::vec3 renderBoids[nrBoids*4*2]; // Each boid has three points and RGB color
 
 	// Dear ImGui setup
 	ImGui::CreateContext();
@@ -498,12 +505,14 @@ int main()
 				model = glm::rotate(model, angle, v);
 
 				// transform each vertex and add them to array
-				renderBoids[i*6] = view * model * glm::vec4(p0, 1.0f);
+				renderBoids[i*6 + 0] = view * model * glm::vec4(p0, 1.0f);
 				renderBoids[i*6 + 1] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 1
 				renderBoids[i*6 + 2] = view * model * glm::vec4(p1, 1.0f);
 				renderBoids[i*6 + 3] = glm::vec3(1.0f, 1.0f, 1.0f); // color vertex 2
 				renderBoids[i*6 + 4] = view * model * glm::vec4(p2, 1.0f);
 				renderBoids[i*6 + 5] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 3
+				//renderBoids[i*8 + 6] = view * model * glm::vec4(p3, 1.0f);
+				//renderBoids[i*8 + 7] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 3
 			}
 
 		clearHashTable();
@@ -522,6 +531,8 @@ int main()
 		// bind vertex array
 		glBindVertexArray(VAO);
 		// bind buffer object and boid array
+
+		/*
 		glBindBuffer(GL_ARRAY_BUFFER, VBO);
 		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 3, &renderBoids[0], GL_STATIC_DRAW);
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
@@ -530,8 +541,25 @@ int main()
 		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
 		glEnableVertexAttribArray(1);
 
+		*/
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 3, &renderBoids[0], GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+		glEnableVertexAttribArray(0);
+
+
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+		glEnableVertexAttribArray(1);
+
+		glDrawElements(GL_TRIANGLES, nrBoids * 3, GL_UNSIGNED_INT, 0);
+
+
 		// Draw 3 * nrBoids vertices
-		glDrawArrays(GL_TRIANGLES, 0, nrBoids * 3);
+		//glDrawArrays(GL_TRIANGLES, 0, nrBoids * 3);
 
 		// unbind buffer and vertex array
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
