@@ -13,8 +13,6 @@
 #include "levelfactory.h"
 #include "spatial_hash.hpp"
 #include <algorithm>
-#include "tbb/parallel_for.h"
-#include "tbb/task_scheduler_init.h"
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -214,10 +212,7 @@ int main()
 			putInHashTable(b);
 		}
 
-		tbb::parallel_for( 
-			tbb::blocked_range<size_t>(0, nrBoids),
-			[&](const tbb::blocked_range<size_t>& r) {
-			for (size_t i = r.begin(); i < r.end(); ++i)
+		for (int i = 0; i < nrBoids; i++)
 			{
 				// Calculate new velocities for each boid, update pos given velocity
 				boids[i].velocity += getSteering(boids.at(i));
@@ -236,7 +231,6 @@ int main()
 				renderBoids[i*3 + 1] = view * model * glm::vec4(p2, 1.0f);
 				renderBoids[i*3 + 2] = view * model * glm::vec4(p3, 1.0f);
 			}
-		} );
 
 		clearHashTable();
 
