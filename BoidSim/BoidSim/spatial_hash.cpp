@@ -6,7 +6,7 @@ using std::tuple;
 
 #define USE_SPATIAL_HASH // comment out this for the naive n^2 version
 // Grid related stuff
-const float CELL_SIZE = 10.0f; // this should be the same value as the boids scope
+const float CELL_SIZE = 15.0f; // this should be the same value as the boids scope
 const int HASH_TABLE_SIZE = 997;
 
 struct BoidBucket{
@@ -77,10 +77,7 @@ void putInHashTable(Boid& b){
 
 // A little helper function that checks if b is within a's scope
 inline bool validNeighbour(Boid& a, Boid& b){
-	if(a.position != b.position && distance(a.position, b.position) < 10.0f){
-		return true;
-	}
-	return false;
+	return (a.position != b.position && distance(a.position, b.position) < CELL_SIZE);
 }
 
 std::vector<Boid*> getNeighbours(Boid& b){
