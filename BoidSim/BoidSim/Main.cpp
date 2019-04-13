@@ -1,6 +1,5 @@
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
-#include <iostream>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -35,7 +34,7 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
-const int nrBoids = 5000;
+const int nrBoids = 10000;
 
 // Which level
 const int level = 1;
@@ -127,6 +126,38 @@ glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
 	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION); 
 	return magnitude*glm::normalize(steering);
 
+}
+
+unsigned int loadCubemap(std::vector<std::string> faces)
+{
+	unsigned int textureID;
+	glGenTextures(1, &textureID);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+
+	int width, height, nrChannels;
+	for (unsigned int i = 0; i < faces.size(); i++)
+	{
+		unsigned char *data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
+		if (data)
+		{
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+				0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data
+			);
+			stbi_image_free(data);
+		}
+		else
+		{
+			std::cout << "Cubemap texture failed to load at path: " << faces[i] << std::endl;
+			stbi_image_free(data);
+		}
+	}
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	return textureID;
 }
 
 void renderCrosshair() {
@@ -298,6 +329,64 @@ int main()
 		return -1;
 	}
 
+	// load background (cubemap)
+	std::vector<std::string> faces
+	{
+		    "skybox/right.jpg",
+			"skybox/left.jpg",
+			"skybox/top.jpg",
+			"skybox/bottom.jpg",
+			"skybox/front.jpg",
+			"skybox/back.jpg"
+	};
+	unsigned int cubemapTexture = loadCubemap(faces);
+
+	float skyboxVertices[] = {
+		// positions          
+		-1.0f,  1.0f, -1.0f,
+		-1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f,
+		1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		-1.0f,  1.0f, -1.0f,
+		1.0f,  1.0f, -1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		1.0f, -1.0f,  1.0f
+	};
+
+
 	//Initialise boids, walls, objects
 	boids = getLevelBoids(level, nrBoids);
 	walls = getLevelWalls(level);
@@ -311,11 +400,24 @@ int main()
 	// generate things
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
+
+	// setup skybox VAO and VBO data
+	unsigned int skyboxVAO, skyboxVBO;
+	glGenVertexArrays(1, &skyboxVAO);
+	glGenBuffers(1, &skyboxVBO);
+	glBindVertexArray(skyboxVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
+	// use the shader created earlier so we can attach matrices
 	glGenBuffers(1, &EBO);
 	glGenTextures(1, &tex1);
 		
 	// Build and compile shaders
 	Shader shader("simple.vert", "simple.frag");
+	Shader skybox("cube.vert", "cube.frag");
 	Shader laserShader("gui.vert", "simple.frag");
 	Shader guiShader("gui.vert", "gui.frag");
 
@@ -332,6 +434,10 @@ int main()
 	projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 1000.0f);
 	// set projection matrix as uniform (attach to bound shader)
 	shader.setMatrix("projection", projection);
+
+	// skybox (background) uses the same projection matrix
+	skybox.use();
+	skybox.setMatrix("projection", projection);
 
 	// instantiate array for boids
 	glm::vec3 renderBoids[nrBoids*3];
@@ -363,8 +469,8 @@ int main()
 		view = glm::lookAt(cameraPos, cameraPos + cameraDir, glm::vec3(0.0f, 1.0f, 0.0f));
 		// clear whatever was on screen last frame
 
-		glClearColor(0.90f, 0.95f, 0.96f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
+		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		// Put all boids in the hash table so we can use it in the next loop
 		for (Boid& b : boids){
@@ -393,6 +499,17 @@ int main()
 
 		clearHashTable();
 
+		// draw skybox
+		glDepthFunc(GL_LEQUAL);
+		skybox.use();
+		skybox.setMatrix("view", glm::mat4(glm::mat3(view)));
+		// ... set view and projection matrix
+		glBindVertexArray(skyboxVAO);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glDepthFunc(GL_LESS); // set depth function back to default
+
+		shader.use();
 		// bind vertex array
 		glBindVertexArray(VAO);
 		// bind buffer object and boid array
