@@ -558,15 +558,17 @@ int main()
 
 		for (int i = 0; i < nrBoids; i++)
 			{
+
 				// Calculate new velocities for each boid, update pos given velocity
-				if (boids[i].isPredator)
+				if (boids[i].isPredator){
 					boids[i].velocity += getSteeringPredator(boids.at(i));
-				else
+				}
+				else {
 					boids[i].velocity += getSteeringPrey(boids.at(i));
+				}
 				
 				boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED;
 				boids[i].position += boids[i].velocity;
-				
 				
 
 				// create model matrix from agent position
@@ -577,12 +579,22 @@ int main()
 				model = glm::rotate(model, angle, v);
 
 				// transform each vertex and add them to array
-				renderBoids[i*6] = view * model * glm::vec4(p1, 1.0f);
-				renderBoids[i*6 + 1] = glm::vec3(0.0f, 1.0f, 0.0f); // color vertex 1
-				renderBoids[i*6 + 2] = view * model * glm::vec4(p2, 1.0f);
-				renderBoids[i*6 + 3] = glm::vec3(1.0f, 0.0f, 0.0f); // color vertex 2
-				renderBoids[i*6 + 4] = view * model * glm::vec4(p3, 1.0f);
-				renderBoids[i*6 + 5] = glm::vec3(0.0f, 0.0f, 1.0f); // color vertex 3
+				if (!boids[i].isPredator) {
+					renderBoids[i * 6] = view * model * glm::vec4(p1, 1.0f);
+					renderBoids[i * 6 + 1] = glm::vec3(1.0f, 1.0f, 1.0f); // color vertex 1
+					renderBoids[i * 6 + 2] = view * model * glm::vec4(p2, 1.0f);
+					renderBoids[i * 6 + 3] = glm::vec3(1.0f, 1.0f, 1.0f); // color vertex 2
+					renderBoids[i * 6 + 4] = view * model * glm::vec4(p3, 1.0f);
+					renderBoids[i * 6 + 5] = glm::vec3(1.0f, 1.0f, 1.0f); // color vertex 3
+				}
+				else {
+					renderBoids[i * 6] = view * model * glm::vec4(p1, 1.0f);
+					renderBoids[i * 6 + 1] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 1
+					renderBoids[i * 6 + 2] = view * model * glm::vec4(p2, 1.0f);
+					renderBoids[i * 6 + 3] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 2
+					renderBoids[i * 6 + 4] = view * model * glm::vec4(p3, 1.0f);
+					renderBoids[i * 6 + 5] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 3
+				}
 			}
 
 		clearHashTable();

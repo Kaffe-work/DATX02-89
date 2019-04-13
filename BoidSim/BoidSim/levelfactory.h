@@ -29,10 +29,12 @@ std::vector<Boid> getLevelBoids(int level, int nrBoids, int nrPredators)
 	switch (level)
 	{
 	default:
-		for (int i = 0; i < nrBoids - nrPredators; ++i)
-		boids.push_back(Boid(100, glm::vec3(0, 0, 0), false));
-		for (int i = 0; i < nrPredators; ++i)
-		boids.push_back(Boid(100, glm::vec3(0, 0, 0), true));
+		for (int i = 0; i < nrBoids - nrPredators; ++i) {
+			boids.push_back(Boid(100, glm::vec3(0, 0, 0), false));
+		}
+		for (int i = 0; i < nrPredators; ++i) {
+			boids.push_back(Boid(100, glm::vec3(0, 0, 0), true));
+		}
 		break;
 	}
 
