@@ -393,13 +393,23 @@ int main()
 	objects = getLevelObjects(level);
 
 	// one vector for each vertex
-	glm::vec3 p1(-1.0f, -1.0f, 0.0f);
-	glm::vec3 p2(0.0f, 1.0f, 0.0f);
-	glm::vec3 p3(1.0f, -1.0f, 0.0f);
+	glm::vec3 p0(-1.0f, -1.0f, 0.0f);
+	glm::vec3 p1(0.0f, 1.5f, sqrt(3)/3);
+	glm::vec3 p2(1.0f, -1.0f, 0.0f);
+	glm::vec3 p3(0.0f, -1.0f, sqrt(3));
+
+	unsigned int indices[] = {  
+	0, 1, 2,  
+	0, 3, 1,    
+	1, 3, 2,    
+	0, 2, 3
+	};
 
 	// generate things
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
+	glGenBuffers(1, &EBO);
+	glGenTextures(1, &tex1);
 
 	// setup skybox VAO and VBO data
 	unsigned int skyboxVAO, skyboxVBO;
@@ -410,10 +420,6 @@ int main()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-
-	// use the shader created earlier so we can attach matrices
-	glGenBuffers(1, &EBO);
-	glGenTextures(1, &tex1);
 		
 	// Build and compile shaders
 	Shader shader("simple.vert", "simple.frag");
@@ -492,12 +498,12 @@ int main()
 				model = glm::rotate(model, angle, v);
 
 				// transform each vertex and add them to array
-				renderBoids[i*6] = view * model * glm::vec4(p1, 1.0f);
-				renderBoids[i*6 + 1] = glm::vec3(0.0f, 1.0f, 0.0f); // color vertex 1
-				renderBoids[i*6 + 2] = view * model * glm::vec4(p2, 1.0f);
-				renderBoids[i*6 + 3] = glm::vec3(1.0f, 0.0f, 0.0f); // color vertex 2
-				renderBoids[i*6 + 4] = view * model * glm::vec4(p3, 1.0f);
-				renderBoids[i*6 + 5] = glm::vec3(0.0f, 0.0f, 1.0f); // color vertex 3
+				renderBoids[i*6] = view * model * glm::vec4(p0, 1.0f);
+				renderBoids[i*6 + 1] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 1
+				renderBoids[i*6 + 2] = view * model * glm::vec4(p1, 1.0f);
+				renderBoids[i*6 + 3] = glm::vec3(1.0f, 1.0f, 1.0f); // color vertex 2
+				renderBoids[i*6 + 4] = view * model * glm::vec4(p2, 1.0f);
+				renderBoids[i*6 + 5] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 3
 			}
 
 		clearHashTable();
