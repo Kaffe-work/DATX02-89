@@ -35,8 +35,8 @@ const int level = 1;
 
 // Level attributes
 std::vector<Boid> boids;
-std::vector<Obstacle> walls;
-std::vector<ForceObject> objects;
+std::vector<ObstaclePlane> walls;
+std::vector<ObstaclePoint> objects;
 
 // Boid attributes
 const float MAX_SPEED = 0.3f;
@@ -99,14 +99,14 @@ glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
 	}
 
 	//Avoid planes
-	for (Obstacle o : walls) {
+	for (ObstaclePlane o : walls) {
 		glm::vec3 v = b.position - o.point;
 		float distance = SOFTNESS / glm::dot(v, o.normal);
 		planeforce += normalize(o.normal)*distance - b.velocity;
 	}
 
 	//Avoid/steer towards an obstaclepoint
-	for (ForceObject f : objects) {
+	for (ObstaclePoint f : objects) {
 		if (f.attractive) {
 			pointforce -= normalize(b.position - f.position) / distance(b.position, f.position);
 		}

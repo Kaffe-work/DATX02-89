@@ -8,9 +8,9 @@
 #include <vector>
 
 
-std::vector<Obstacle> getLevelWalls(int level)
+std::vector<ObstaclePlane> getLevelWalls(int level)
 {
-	std::vector<Obstacle> walls;
+	std::vector<ObstaclePlane> walls;
 
 	switch (level)
 	{
@@ -37,15 +37,15 @@ std::vector<Boid> getLevelBoids(int level, int nrBoids)
 	return boids;
 }
 
-std::vector<ForceObject> getLevelObjects(int level)
+std::vector<ObstaclePoint> getLevelObjects(int level)
 {
-	std::vector<ForceObject> objects;
+	std::vector<ObstaclePoint> objects;
 
 	switch (level)
 	{
 	default:
-		objects.push_back(ForceObject(100, 0, 0, true));
-		objects.push_back(ForceObject(-100, 0, 0, false));
+		objects.push_back(ObstaclePoint(100, 0, 0, true));
+		objects.push_back(ObstaclePoint(-100, 0, 0, false));
 		break;
 	}
 
