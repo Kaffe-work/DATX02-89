@@ -33,7 +33,8 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
-const int nrBoids = 1000, nrPredators = 50;
+
+const int nrBoids = 100, nrPredators = 5;
 
 // Which level
 const int level = 2;
@@ -614,7 +615,7 @@ int main()
 		glBindVertexArray(VAO);
 		// bind buffer object and boid array
 		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 3, &renderBoids[0], GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 3 * 2, &renderBoids[0], GL_STATIC_DRAW);
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
 		glEnableVertexAttribArray(0);
 
