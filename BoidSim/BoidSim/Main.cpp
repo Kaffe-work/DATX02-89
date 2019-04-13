@@ -441,6 +441,8 @@ int main()
 
 	// instantiate array for boids
 	glm::vec3 renderBoids[nrBoids*3*2]; // Each boid has three points and RGB color
+	glm::vec3 renderObjects[2];
+
 
 	// Dear ImGui setup
 	ImGui::CreateContext();
@@ -500,6 +502,16 @@ int main()
 				renderBoids[i*6 + 5] = glm::vec3(0.0f, 0.0f, 1.0f); // color vertex 3
 			}
 
+		// for each obstacle
+		for (int i = 0; i < 2; i++) 
+		{
+			// create model matrix from obstacle position
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, objects[i].position);
+
+			renderObjects[i] = view * model * glm::vec4(objects[i].position, 1.0f);
+		}
+
 		clearHashTable();
 
 		// draw skybox
@@ -528,6 +540,15 @@ int main()
 		glDrawArrays(GL_TRIANGLES, 0, nrBoids * 3);
 
 		// unbind buffer and vertex array
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, 2 * sizeof(glm::vec3), &renderObjects[0], GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+		glEnableVertexAttribArray(0);
+
+		glEnable(GL_PROGRAM_POINT_SIZE);
+		glPointSize(20);
+		glDrawArrays(GL_POINTS, 0, 12);
+
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
 
