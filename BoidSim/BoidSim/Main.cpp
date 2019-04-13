@@ -241,7 +241,7 @@ int main()
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
 
-	// skybox VAO
+	// setup skybox VAO and VBO data
 	unsigned int skyboxVAO, skyboxVBO;
 	glGenVertexArrays(1, &skyboxVAO);
 	glGenBuffers(1, &skyboxVBO);
@@ -261,9 +261,9 @@ int main()
 	// set projection matrix as uniform (attach to bound shader)
 	shader.setMatrix("projection", projection);
 
+	// skybox (background) uses the same projection matrix
 	skybox.use();
 	skybox.setMatrix("projection", projection);
-	skybox.setInt("skybox", 0);
 
 	// instantiate array for boids
 	glm::vec3 renderBoids[nrBoids*3];
@@ -317,6 +317,16 @@ int main()
 		}
 		clearHashTable();
 
+		// draw skybox
+		glDepthFunc(GL_LEQUAL);
+		skybox.use();
+		skybox.setMatrix("view", glm::mat4(glm::mat3(view)));
+		// ... set view and projection matrix
+		glBindVertexArray(skyboxVAO);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glDepthFunc(GL_LESS); // set depth function back to default
+
 		shader.use();
 		// bind vertex array
 		glBindVertexArray(VAO);
@@ -332,14 +342,6 @@ int main()
 		// unbind buffer and vertex array
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
-
-		glDepthFunc(GL_LEQUAL);
-		skybox.use();
-		// ... set view and projection matrix
-		glBindVertexArray(skyboxVAO);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		glDepthFunc(GL_LESS); // set depth function back to default
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
