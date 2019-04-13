@@ -312,7 +312,7 @@ int main()
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Needed for OS X, and possibly Linux
 
 	// glfw: window creation
-	GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", glfwGetPrimaryMonitor(), NULL);
 	if (window == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
@@ -321,6 +321,9 @@ int main()
 	}
 	glfwMakeContextCurrent(window);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+	
+	// GLFW catches the cursor
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	// glad: load all OpenGL function pointers
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
