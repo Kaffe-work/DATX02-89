@@ -36,7 +36,7 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
-const int nrBoids = 10000;
+const int nrBoids = 1000;
 
 // Which level
 const int level = 1;
@@ -442,7 +442,7 @@ int main()
 	skybox.setMatrix("projection", projection);
 
 	// instantiate array for boids
-	glm::vec3 renderBoids[nrBoids*3];
+	glm::vec3 renderBoids[nrBoids*3*2]; // Each boid has three points and RGB color
 
 	// Dear ImGui setup
 	ImGui::CreateContext();
@@ -497,9 +497,12 @@ int main()
 				model = glm::rotate(model, angle, v);
 
 				// transform each vertex and add them to array
-				renderBoids[i * 3] = view * model * glm::vec4(p1, 1.0f);
-				renderBoids[i * 3 + 1] = view * model * glm::vec4(p2, 1.0f);
-				renderBoids[i * 3 + 2] = view * model * glm::vec4(p3, 1.0f);
+				renderBoids[i*6] = view * model * glm::vec4(p1, 1.0f);
+				renderBoids[i*6 + 1] = glm::vec3(0.0f, 1.0f, 0.0f); // color vertex 1
+				renderBoids[i*6 + 2] = view * model * glm::vec4(p2, 1.0f);
+				renderBoids[i*6 + 3] = glm::vec3(1.0f, 0.0f, 0.0f); // color vertex 2
+				renderBoids[i*6 + 4] = view * model * glm::vec4(p3, 1.0f);
+				renderBoids[i*6 + 5] = glm::vec3(0.0f, 0.0f, 1.0f); // color vertex 3
 			}
 		});
 
@@ -520,9 +523,12 @@ int main()
 		glBindVertexArray(VAO);
 		// bind buffer object and boid array
 		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 3, &renderBoids[0], GL_STATIC_DRAW);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 3 * 2, &renderBoids[0], GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
 		glEnableVertexAttribArray(0);
+
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+		glEnableVertexAttribArray(1);
 
 		// Draw 3 * nrBoids vertices
 		glDrawArrays(GL_TRIANGLES, 0, nrBoids * 3);
