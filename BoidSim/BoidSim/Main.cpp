@@ -417,7 +417,7 @@ int main()
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Needed for OS X, and possibly Linux
 
 	// glfw: window creation
-	GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", glfwGetPrimaryMonitor(), NULL);
 	if (window == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
@@ -426,6 +426,9 @@ int main()
 	}
 	glfwMakeContextCurrent(window);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+	
+	// GLFW catches the cursor
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	// glad: load all OpenGL function pointers
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -650,10 +653,9 @@ int main()
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
 
-		laserShader.use();
-		int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-		state = glfwGetKey(window, GLFW_KEY_SPACE);
-		if (state == GLFW_PRESS) {
+
+		if (repellLine) {
+			laserShader.use();
 			renderLaser();
 		}
 
@@ -692,10 +694,14 @@ void processInput(GLFWwindow *window)
 	double deltaY = ypos - ypos_old;
 
 	// If left mouse click is depressed, modify yaw and pitch
+	yaw += deltaX * 0.002;
+	pitch = fmin(pitch + deltaY * 0.002, 0.3f); // max 89 grader
+
 	int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-	if (state != GLFW_PRESS) {
-		yaw += deltaX * 0.002;
-		pitch = fmin(pitch + deltaY * 0.002, 0.3f); // max 89 grader
+	if (state == GLFW_PRESS) {
+		repellLine = true;
+	}else {
+		repellLine = false;
 	}
 
 	state = glfwGetKey(window, GLFW_KEY_W);
@@ -713,13 +719,6 @@ void processInput(GLFWwindow *window)
 	state = glfwGetKey(window, GLFW_KEY_D);
 	if (state == GLFW_PRESS) {
 		cameraPos += cross(cameraDir, glm::vec3(0.0f, 1.0f, 0.0f)) * 3.0f;
-	}
-	state = glfwGetKey(window, GLFW_KEY_SPACE);
-	if (state == GLFW_PRESS) {
-		repellLine = true;
-	}
-	else {
-		repellLine = false;
 	}
 
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
