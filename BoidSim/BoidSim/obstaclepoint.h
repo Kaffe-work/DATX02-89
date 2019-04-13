@@ -1,5 +1,5 @@
-#ifndef forceobject_h
-#define forceobject_h
+#ifndef obstaclepoint_h
+#define obstaclepoint_h
 
 #include <glm/glm.hpp>
 #include <vector>

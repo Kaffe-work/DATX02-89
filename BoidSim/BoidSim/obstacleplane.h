@@ -1,5 +1,5 @@
-#ifndef obstacle_h
-#define obstacle_h
+#ifndef obstacleplane_h
+#define obstacleplane_h
 
 #include <glm/glm.hpp>
 #include <vector>

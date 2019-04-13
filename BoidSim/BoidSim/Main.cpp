@@ -33,7 +33,7 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
-const int nrBoids = 1000, nrPredators = 5;
+const int nrBoids = 1000, nrPredators = 50;
 
 // Which level
 const int level = 2;
@@ -559,13 +559,11 @@ int main()
 		for (int i = 0; i < nrBoids; i++)
 			{
 				// Calculate new velocities for each boid, update pos given velocity
-				if (boids[i].isPredator) {
+				if (boids[i].isPredator)
 					boids[i].velocity += getSteeringPredator(boids.at(i));
-					boids[i].position += boids[i].velocity;
-				}
-				else {
+				else
 					boids[i].velocity += getSteeringPrey(boids.at(i));
-				}
+				
 				boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED;
 				boids[i].position += boids[i].velocity;
 				
