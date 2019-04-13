@@ -545,6 +545,8 @@ int main()
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 		glEnableVertexAttribArray(0);
 
+
+		// draw obstacles
 		glEnable(GL_PROGRAM_POINT_SIZE);
 		glPointSize(20);
 		glDrawArrays(GL_POINTS, 0, 12);
