@@ -32,12 +32,12 @@ glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
-// How many boids on screen
-
-const int nrBoids = 500, nrPredators = 0;
-
 // Which level
-const int level = 1;
+const int level = 3;
+
+// Number of boids, with nrPredators as predators. 
+const int nrBoids = 300;
+unsigned int nrPredators = 0;
 
 // Level attributes
 std::vector<Boid> boids;
@@ -48,7 +48,14 @@ std::vector<ObstaclePoint> objects;
 const float MAX_SPEED = 0.3f;
 const float MAX_ACCELERATION = 0.05f;
 const float SOFTNESS = 10.0f;
+const float DEATH_DISTANCE = 3.5f;
 bool repellLine = false;
+
+//Game attributes
+int scorePositive = 0;
+int scoreNegative = 0;
+const bool is3D = getLevelDimensions(level, false);
+
 
 // Vertex Array Object, Vertex/Element Buffer Objects, texture (can be reused)
 unsigned int VAO, VBO, EBO, tex1, tex2;
@@ -77,7 +84,7 @@ glm::vec3 getSteeringPredator(Boid & b) {
 	glm::vec3 alignment = glm::vec3(0.0);
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
-	glm::vec3 avoidplane = glm::vec3(0.0);
+	glm::vec3 planeforce = glm::vec3(0.0);
 	glm::vec3 hunt = glm::vec3(0.0);
 	std::vector<Boid*> nb = getNeighbours(b);
 	std::vector<Boid> prey;
@@ -111,7 +118,7 @@ glm::vec3 getSteeringPredator(Boid & b) {
 	for (ObstaclePlane o : walls) {
 		glm::vec3 v = b.position - o.point;
 		float distance = SOFTNESS / glm::dot(v, o.normal);
-		avoidplane += normalize(o.normal)*distance - b.velocity;
+		planeforce += normalize(o.normal)*distance - b.velocity;
 	}
 
 	//Hunt
@@ -126,7 +133,8 @@ glm::vec3 getSteeringPredator(Boid & b) {
 	}
 
 
-	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 10.0f*avoidplane + 50.0f*hunt;
+	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 10.0f*planeforce + 50.0f*hunt;
+	if (!is3D) { steering = glm::vec3(steering.x, steering.y, 0); }
 
 	// Limit acceleration
 	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION);
@@ -188,14 +196,15 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	//Avoid/steer towards an obstaclepoint, and "Exit (die)"
 	for (ObstaclePoint f : objects) {
 		if (f.attractive) {
-			if (f.lethality && distance(b.position,f.position) < 5.0f){
+			if (f.lethality && distance(b.position,f.position) < DEATH_DISTANCE){
 				b.isAlive = false;
+				scoreNegative++;
 				return glm::vec3(0.0);
 			}
-			pointforce -= normalize(b.position - f.position) / distance(b.position, f.position);
+			pointforce -= normalize(b.position - f.position) * 2.0f / distance(b.position, f.position);
 		}
 		else {
-			pointforce += normalize(b.position - f.position) / distance(b.position, f.position);
+			pointforce += normalize(b.position - f.position) * 2.0f / distance(b.position, f.position);
 		}
 	}
 	if (std::size(objects) > 0) {
@@ -205,8 +214,9 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	//Avoid player controlled line
 	if (repellLine) {
 		glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
-		if (distance(b.position, point) < 5.0f) {
+		if (distance(b.position, point) < DEATH_DISTANCE) {
 			b.isAlive = false;
+			scorePositive++;
 			return glm::vec3(0.0);
 		}
 		lineforce = normalize(b.position - point) * pow(SOFTNESS, 2) / (distance(b.position, point)) - b.velocity;
@@ -217,8 +227,9 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	if (size(predators) > 0) {
 		for (Boid n : predators) {
 			flee += 1.0f/n.position;
-			if (distance(n.position, b.position) < 10.0f) {
+			if (distance(n.position, b.position) < DEATH_DISTANCE) {
 				b.isAlive = false;
+				scorePositive++;
 				return glm::vec3(0.0);
 			}
 		}
@@ -226,7 +237,8 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	}
 	
 	glm::vec3 steering = alignment + cohesion + 1.5f*separation + 10.0f*planeforce + 10.0f*pointforce + lineforce + flee;
-	
+	if (!is3D) { steering = glm::vec3(steering.x, steering.y, 0); }
+
 	// Limit acceleration
 	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION); 
 	return magnitude*glm::normalize(steering);
@@ -391,7 +403,7 @@ void createImGuiWindow()
 
 	ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
 
-	ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+	/*ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
 	ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
 	ImGui::Checkbox("Another Window", &show_another_window);
 
@@ -400,10 +412,13 @@ void createImGuiWindow()
 
 	if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
 		counter++;
-	ImGui::SameLine();
-	ImGui::Text("counter = %d", counter);
-
+	ImGui::SameLine();*/
 	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+	ImGui::Text("Score = %d", scorePositive - scoreNegative);
+
+	if (scorePositive + scoreNegative == nrBoids) {
+		ImGui::Text("Game over!");
+	}
 	ImGui::End();
 }
 
@@ -496,7 +511,7 @@ int main()
 
 
 	//Initialise boids, walls, objects
-	boids = getLevelBoids(level, nrBoids, nrPredators);
+	boids = getLevelBoids(level, nrBoids, nrPredators, is3D);
 	walls = getLevelWalls(level);
 	objects = getLevelObjects(level);
 
@@ -696,6 +711,7 @@ void processInput(GLFWwindow *window)
 	// If left mouse click is depressed, modify yaw and pitch
 	yaw += deltaX * 0.002;
 	pitch = fmin(pitch + deltaY * 0.002, 0.3f); // max 89 grader
+
 
 	int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
 	if (state == GLFW_PRESS) {
