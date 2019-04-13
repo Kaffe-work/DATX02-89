@@ -7,9 +7,10 @@
 struct ObstaclePoint {
 	glm::vec3 position;
 	bool attractive;
+	bool lethality;
 
-	ObstaclePoint(float p1, float p2, float p3, bool attract)
-		: position(p1, p2, p3), attractive(attract) {}
+	ObstaclePoint(float p1, float p2, float p3, bool attract, bool lethal)
+		: position(p1, p2, p3), attractive(attract), lethality(lethal) {}
 };
 
 #endif

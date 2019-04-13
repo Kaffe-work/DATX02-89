@@ -188,7 +188,7 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	//Avoid/steer towards an obstaclepoint, and "Exit (die)"
 	for (ObstaclePoint f : objects) {
 		if (f.attractive) {
-			if (distance(b.position,f.position) < 5.0f){
+			if (f.lethality && distance(b.position,f.position) < 5.0f){
 				b.isAlive = false;
 				return glm::vec3(0.0);
 			}

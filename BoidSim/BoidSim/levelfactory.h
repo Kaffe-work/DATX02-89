@@ -50,7 +50,7 @@ std::vector<ObstaclePoint> getLevelObjects(int level)
 	case 1:
 		break;
 	default:
-		objects.push_back(ObstaclePoint(0, 0, 0, true));
+		objects.push_back(ObstaclePoint(0, 0, 0, true, true));
 		break;
 	}
 
