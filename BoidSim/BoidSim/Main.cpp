@@ -175,16 +175,16 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	}
 
 	//Avoid/steer towards an obstaclepoint, and "Exit (die)"
-	for (ObstaclePoint f : objects) {
+	for (ObstaclePoint f : points) {
 		if (f.lethality && distance(b.position, f.position) < DEATH_DISTANCE) {
 			b.isAlive = false;
-			scoreNegative++;
+			scorePositive++;
 			return glm::vec3(0.0);
 		}
 		pointforce += (f.attractive ? -1.0f : 1.0f) * normalize(b.position - f.position) * 2.0f / distance(b.position, f.position);
 	}
-	if (std::size(objects) > 0) {
-		pointforce = normalize(pointforce * (1.0f / std::size(objects)) - b.velocity);
+	if (std::size(points) > 0) {
+		pointforce = normalize(pointforce * (1.0f / std::size(points)) - b.velocity);
 	}
 
 	//Avoid player controlled line
@@ -192,7 +192,7 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 		glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
 		if (isLaserLethal && distance(b.position, point) < DEATH_DISTANCE) {
 			b.isAlive = false;
-			scorePositive++;
+			scoreNegative++;
 			return glm::vec3(0.0);
 		}
 		lineforce = (isLaserRepellant ? 1.0f : -1.0f) * normalize(b.position - point) * LASER_SOFTNESS / (distance(b.position, point)) - b.velocity;
@@ -205,7 +205,7 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 			flee += 1.0f/n.position;
 			if (distance(n.position, b.position) < DEATH_DISTANCE) {
 				b.isAlive = false;
-				scorePositive++;
+				scoreNegative++;
 				return glm::vec3(0.0);
 			}
 		}
