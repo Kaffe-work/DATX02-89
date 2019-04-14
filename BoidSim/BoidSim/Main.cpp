@@ -1,3 +1,4 @@
+#include "levelfactory.h"
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -9,7 +10,6 @@
 #include "boid.h"
 #include "obstaclepoint.h"
 #include "obstacleplane.h"
-#include "levelfactory.h"
 #include "spatial_hash.hpp"
 #include <algorithm>
 #include "imgui/imgui.h"
@@ -24,6 +24,11 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 double xpos, ypos; // cursor position
 
+bool cameraReset = true;
+				   
+// Number of boids, with nrPredators as predators. 
+const int nrBoids = 300;
+
 // setup
 const unsigned int screenWidth = 1280, screenHeight = 720;
 
@@ -32,31 +37,6 @@ glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
-// Which level
-const int level = 3;
-
-// Number of boids, with nrPredators as predators. 
-const int nrBoids = 300;
-unsigned int nrPredators = 0;
-
-// Level attributes
-std::vector<Boid> boids;
-std::vector<ObstaclePlane> walls;
-std::vector<ObstaclePoint> objects;
-
-// Boid attributes
-const float MAX_SPEED = 0.3f;
-const float MAX_ACCELERATION = 0.05f;
-const float SOFTNESS = 10.0f;
-const float DEATH_DISTANCE = 3.5f;
-bool repellLine = false;
-
-//Game attributes
-int scorePositive = 0;
-int scoreNegative = 0;
-const bool is3D = getLevelDimensions(level, false);
-
-
 // Vertex Array Object, Vertex/Element Buffer Objects, texture (can be reused)
 unsigned int VAO, VBO, EBO, tex1, tex2;
 
@@ -64,17 +44,6 @@ unsigned int VAO, VBO, EBO, tex1, tex2;
 bool show_demo_window = true;
 bool show_another_window = false;
 ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
-// If e.g. percentage = 1 => vec3(0,0,0) will be returned with 99% probability
-glm::vec3 getRandomVectorWithChance(int percentage) {
-	bool maybe = percentage == 0 ? false : rand() % (100/percentage) == 0;
-	return glm::vec3(maybe ? rand() % 121 - 60, rand() % 121 - 60, rand() % 21 - 10 : 0, 0, 0);
-}
-
-// If e.g rangePercent is 5 then this will return a number between 0.95 and 1.05
-float getRandomFloatAroundOne(int rangePercent) {
-	return 1.0f + ((rand() % 1001 - 500) % (rangePercent * 10)) / 1000.0f;
-}
 
 glm::vec3 getSteeringPredator(Boid & b) {
 	if (!b.isAlive) {
@@ -85,6 +54,7 @@ glm::vec3 getSteeringPredator(Boid & b) {
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
 	glm::vec3 planeforce = glm::vec3(0.0);
+	glm::vec3 lineforce = glm::vec3(0.0);
 	glm::vec3 hunt = glm::vec3(0.0);
 	std::vector<Boid*> nb = getNeighbours(b);
 	std::vector<Boid> prey;
@@ -105,7 +75,7 @@ glm::vec3 getSteeringPredator(Boid & b) {
 	for (Boid n : predators) {
 		alignment += n.velocity;
 		cohesion += n.position;
-		separation += normalize(b.position - n.position) / distance(b.position, n.position);
+		separation += normalize(b.position - n.position) * SEPARATION_SOFTNESS / distance(b.position, n.position);
 	}
 
 	if (std::size(predators) > 0) {
@@ -117,8 +87,19 @@ glm::vec3 getSteeringPredator(Boid & b) {
 	//Avoid walls
 	for (ObstaclePlane o : walls) {
 		glm::vec3 v = b.position - o.point;
-		float distance = SOFTNESS / glm::dot(v, o.normal);
+		float distance = PLANE_SOFTNESS / glm::dot(v, o.normal);
 		planeforce += normalize(o.normal)*distance - b.velocity;
+	}
+
+	//Avoid player controlled line
+	if (isLaserActive) {
+		glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
+		if (isLaserLethal && distance(b.position, point) < DEATH_DISTANCE) {
+			b.isAlive = false;
+			scorePositive++;
+			return glm::vec3(0.0);
+		}
+		lineforce = (isLaserRepellant ? 1.0f : -1.0f) * normalize(b.position - point) * LASER_SOFTNESS / (distance(b.position, point)) - b.velocity;
 	}
 
 	//Hunt
@@ -133,11 +114,11 @@ glm::vec3 getSteeringPredator(Boid & b) {
 	}
 
 
-	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 10.0f*planeforce + 50.0f*hunt;
+	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 10.0f*planeforce + 50.0f*hunt + lineforce;
 	if (!is3D) { steering = glm::vec3(steering.x, steering.y, 0); }
 
 	// Limit acceleration
-	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION);
+	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION_PREDATOR);
 	return magnitude * glm::normalize(steering);
 }
 
@@ -188,38 +169,33 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	//Avoid planes
 	for (ObstaclePlane o : walls) {
 		glm::vec3 v = b.position - o.point;
-		float distance = SOFTNESS / glm::dot(v, o.normal);
+		float distance = PLANE_SOFTNESS / glm::dot(v, o.normal);
 		planeforce += normalize(o.normal)*distance - b.velocity;
 
 	}
 
 	//Avoid/steer towards an obstaclepoint, and "Exit (die)"
 	for (ObstaclePoint f : objects) {
-		if (f.attractive) {
-			if (f.lethality && distance(b.position,f.position) < DEATH_DISTANCE){
-				b.isAlive = false;
-				scoreNegative++;
-				return glm::vec3(0.0);
-			}
-			pointforce -= normalize(b.position - f.position) * 2.0f / distance(b.position, f.position);
+		if (f.lethality && distance(b.position, f.position) < DEATH_DISTANCE) {
+			b.isAlive = false;
+			scoreNegative++;
+			return glm::vec3(0.0);
 		}
-		else {
-			pointforce += normalize(b.position - f.position) * 2.0f / distance(b.position, f.position);
-		}
+		pointforce += (f.attractive ? -1.0f : 1.0f) * normalize(b.position - f.position) * 2.0f / distance(b.position, f.position);
 	}
 	if (std::size(objects) > 0) {
 		pointforce = normalize(pointforce * (1.0f / std::size(objects)) - b.velocity);
 	}
 
 	//Avoid player controlled line
-	if (repellLine) {
+	if (isLaserActive) {
 		glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
-		if (distance(b.position, point) < DEATH_DISTANCE) {
+		if (isLaserLethal && distance(b.position, point) < DEATH_DISTANCE) {
 			b.isAlive = false;
 			scorePositive++;
 			return glm::vec3(0.0);
 		}
-		lineforce = normalize(b.position - point) * pow(SOFTNESS, 2) / (distance(b.position, point)) - b.velocity;
+		lineforce = (isLaserRepellant ? 1.0f : -1.0f) * normalize(b.position - point) * LASER_SOFTNESS / (distance(b.position, point)) - b.velocity;
 	}
 
 
@@ -422,6 +398,13 @@ void createImGuiWindow()
 	ImGui::End();
 }
 
+void resetCamera() {
+	cameraDir = glm::vec3(1.0f, 1.0f, 200.0f);
+	cameraPos = glm::vec3(1.0f, 1.0f, -200.0f);
+	yaw = 1.6f;
+	pitch = 0.0f;
+}
+
 int main()
 {
 	// glfw: initialize and configure
@@ -511,9 +494,9 @@ int main()
 
 
 	//Initialise boids, walls, objects
-	boids = getLevelBoids(level, nrBoids, nrPredators, is3D);
-	walls = getLevelWalls(level);
-	objects = getLevelObjects(level);
+	createLevel(nrBoids);
+
+	
 
 	// one vector for each vertex
 	glm::vec3 p1(-1.0f, -1.0f, 0.0f);
@@ -571,6 +554,7 @@ int main()
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 330"); // glsl version
 
+
 	// render loop
 	// -----------
 	while (!glfwWindowShouldClose(window))
@@ -595,6 +579,11 @@ int main()
 		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		if (cameraReset) {
+			resetCamera();
+			cameraReset = false;
+		}
+
 		// Put all boids in the hash table so we can use it in the next loop
 		for (Boid& b : boids){
 			putInHashTable(b);
@@ -610,7 +599,7 @@ int main()
 				// Calculate new velocities for each boid, update pos given velocity
 				if (boids[i].isPredator){
 					boids[i].velocity += getSteeringPredator(boids.at(i));
-					boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED*2.0f;
+					boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED_PREDATOR;
 					allColour = 0.0f;
 				}
 				else {
@@ -669,7 +658,7 @@ int main()
 		glBindVertexArray(0);
 
 
-		if (repellLine) {
+		if (isLaserActive) {
 			laserShader.use();
 			renderLaser();
 		}
@@ -715,9 +704,9 @@ void processInput(GLFWwindow *window)
 
 	int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
 	if (state == GLFW_PRESS) {
-		repellLine = true;
+		isLaserActive = true;
 	}else {
-		repellLine = false;
+		isLaserActive = false;
 	}
 
 	state = glfwGetKey(window, GLFW_KEY_W);
@@ -735,6 +724,21 @@ void processInput(GLFWwindow *window)
 	state = glfwGetKey(window, GLFW_KEY_D);
 	if (state == GLFW_PRESS) {
 		cameraPos += cross(cameraDir, glm::vec3(0.0f, 1.0f, 0.0f)) * 3.0f;
+	}
+	state = glfwGetKey(window, GLFW_KEY_1);
+	if (state == GLFW_PRESS) {
+		reset(nrBoids, 1);
+		resetCamera();
+	}
+	state = glfwGetKey(window, GLFW_KEY_2);
+	if (state == GLFW_PRESS) {
+		reset(nrBoids, 2);
+		resetCamera();
+	}
+	state = glfwGetKey(window, GLFW_KEY_3);
+	if (state == GLFW_PRESS) {
+		reset(nrBoids, 3);
+		resetCamera();
 	}
 
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
