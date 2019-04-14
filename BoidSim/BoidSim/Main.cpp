@@ -27,7 +27,7 @@ double xpos, ypos; // cursor position
 bool cameraReset = true;
 				   
 // Number of boids, with nrPredators as predators. 
-const int nrBoids = 300;
+const int nrBoids = 2000;
 
 // setup
 const unsigned int screenWidth = 1280, screenHeight = 720;
@@ -591,16 +591,10 @@ int main()
 
 		for (int i = 0; i < nrBoids; i++)
 			{
-
-			float allColour = 1.0f, redColour = 0.0f;
-			if (!boids[i].isAlive)
-				redColour = 1.0f;
-
 				// Calculate new velocities for each boid, update pos given velocity
 				if (boids[i].isPredator){
 					boids[i].velocity += getSteeringPredator(boids.at(i));
 					boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED_PREDATOR;
-					allColour = 0.0f;
 				}
 				else {
 					boids[i].velocity += getSteeringPrey(boids.at(i));
@@ -619,11 +613,11 @@ int main()
 
 				// transform each vertex and add them to array
 					renderBoids[i * 6] = view * model * glm::vec4(p1, 1.0f);
-					renderBoids[i * 6 + 1] = glm::vec3(allColour, allColour - redColour, allColour - redColour); // color vertex 1
+					renderBoids[i * 6 + 1] = glm::vec3(1.0f) * (float)!boids[i].isPredator + glm::vec3(3.0f)*(float)!boids[i].isAlive; // color vertex 1
 					renderBoids[i * 6 + 2] = view * model * glm::vec4(p2, 1.0f);
-					renderBoids[i * 6 + 3] = glm::vec3(allColour, allColour - redColour, allColour - redColour); // color vertex 2
+					renderBoids[i * 6 + 3] = glm::vec3(1.0f) * (float)!boids[i].isPredator + glm::vec3(3.0f)*(float)!boids[i].isAlive; // color vertex 2
 					renderBoids[i * 6 + 4] = view * model * glm::vec4(p3, 1.0f);
-					renderBoids[i * 6 + 5] = glm::vec3(allColour, allColour - redColour, allColour - redColour); // color vertex 3
+					renderBoids[i * 6 + 5] = glm::vec3(1.0f) * (float)!boids[i].isPredator + glm::vec3(3.0f)*(float)!boids[i].isAlive; // color vertex 3
 			}
 
 		clearHashTable();
