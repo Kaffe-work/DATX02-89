@@ -31,7 +31,7 @@ const unsigned int screenWidth = 1280, screenHeight = 720;
 // camera settings
 glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
-double yaw = 1.6f, pitch = 0.0f;
+double yaw = 1.6f, pitch = 1.0f;
 
 // How many boids on screen
 const int nrBoids = 10;
