@@ -8,10 +8,10 @@
 #include <vector>
 
 //Nr of predators
-unsigned int nrPredators = 3000;
+unsigned int nrPredators = 100;
 
 // Which level
-int level = 3;
+int level = 0;
 
 // Level objects
 std::vector<Boid> boids;
