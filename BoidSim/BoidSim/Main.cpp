@@ -44,7 +44,8 @@ std::vector<Boid> boids;
 std::vector<ObstaclePlane> walls;
 std::vector<ObstaclePoint> objects;
 
-float averages = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+float averages [7] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+int avgCount [7] = { 0, 0, 0, 0, 0, 0, 0 };
 
 
 // Boid attributes
@@ -239,33 +240,45 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	}
 
 	for (int i = 0; i < 7; i++) {
-		float length = 0;
+		float l = 0;
 		switch (i) {
 		case 0:
+			l = glm::length(alignment);
 			break;
 
 		case 1:
+			l = glm::length(cohesion);
 			break;
 
 		case 2:
+			l = glm::length(separation);
 			break;
 
 		case 3:
+			l = glm::length(planeforce);
 			break;
 
 		case 4:
+			l = glm::length(pointforce);
 			break;
 
 		case 5:
+			l = glm::length(lineforce);
 			break;
 
 		default: //6 flee
+			l = glm::length(flee);
 			break;
+		}
+
+		if (l > 0) {
+			avgCount[i]++;
+			averages[i] = (averages[i] * (avgCount[i] - 1) + l ) / avgCount[i];
 		}
 
 	}
 	
-	glm::vec3 steering = alignment + cohesion + 1.5f*separation + 10.0f*planeforce + 10.0f*pointforce + lineforce + flee;
+	glm::vec3 steering = alignment/averages[0] + cohesion / averages[1] + separation / averages[2] + 10.0f*planeforce / averages[3] + 10.0f*pointforce / averages[4] + lineforce / averages[5] + flee / averages[6];
 	if (!is3D) { steering = glm::vec3(steering.x, steering.y, 0); }
 
 	// Limit acceleration
