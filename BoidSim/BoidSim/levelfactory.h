@@ -43,7 +43,7 @@ bool isLaserActive = false;
 bool levelCreated = false;
 
 void createLevel(int nrBoids) {
-	//Default values
+	//Default values - Do not change!! It will affect the level design
 	int spawnAreaSize = 100;
 	int spawnAreaSizePredator = 100;
 	glm::vec3 spawnAreaOffset = glm::vec3(0.0);
@@ -54,64 +54,191 @@ void createLevel(int nrBoids) {
 	MAX_ACCELERATION_PREDATOR = 0.05f;
 	DEATH_DISTANCE = 3.5f;
 	isLaserRepellant = true;
-	isLaserLethal = true;
+	isLaserLethal = false;
 
 	POINT_SOFTNESS = 2.0f;
 	SEPARATION_SOFTNESS = 2.0f;
 	PLANE_SOFTNESS = 10.0f;
 	LASER_SOFTNESS = 100.0f;
-
+	bool defaultSpawn = true;
+	nrPredators = 0;
+	is3D = false;
 
 	//Change values depending on level
 	switch (level)
 	{
-	case 2:
+	case 6: // Guide boids out of a labyrinth, level 6
 		is3D = false;
-		nrPredators = 10;
-		spawnAreaSize = 50;
-		spawnAreaSizePredator = 10;
-		spawnAreaOffsetPredator = glm::vec3(100, 0, 0);
+		isLaserLethal = false;
+		isLaserRepellant = false;
+		POINT_SOFTNESS = 5.0f;
 
-		points.push_back(ObstaclePoint(110, 110, 0, false, false));
-		points.push_back(ObstaclePoint(110, -110, 0, false, false));
-		points.push_back(ObstaclePoint(-110, 110, 0, false, false));
-		points.push_back(ObstaclePoint(-110, -110, 0, false, false));
+		
 
-		points.push_back(ObstaclePoint(100, 0, 0, true, true));
+		spawnAreaSize = 30;
 
+		{
+			int size = 100;
+			int factor = 1;
 
-		walls = getWalls(300);
+			points.push_back(ObstaclePoint(size *factor, size * factor, 0, false, false));
+			points.push_back(ObstaclePoint(size * factor, -size * factor, 0, false, false));
+			points.push_back(ObstaclePoint(-size * factor, size * factor, 0, false, false));
+			points.push_back(ObstaclePoint(-size * factor, -size * factor, 0, false, false));
+
+			//points.push_back(ObstaclePoint(size * factor, 0, 0, false, false));
+			points.push_back(ObstaclePoint(-size * factor, 0, 0, false, false));
+			points.push_back(ObstaclePoint(0, -size * factor, 0, false, false));
+			points.push_back(ObstaclePoint(0, size*factor, 0, false, false));
+
+			factor = 2;
+
+			points.push_back(ObstaclePoint(size*factor, size*factor, 0, false, false));
+			points.push_back(ObstaclePoint(size*factor, -size * factor, 0, false, false));
+			points.push_back(ObstaclePoint(-size * factor, size*factor, 0, false, false));
+			points.push_back(ObstaclePoint(-size * factor, -size * factor, 0, false, false));
+
+			points.push_back(ObstaclePoint(size*factor, 0, 0, false, false));
+			//points.push_back(ObstaclePoint(-size * factor, 0, 0, false, false));
+			points.push_back(ObstaclePoint(0, -size * factor, 0, false, false));
+			points.push_back(ObstaclePoint(0, size*factor, 0, false, false));
+
+			factor = 3;
+			points.push_back(ObstaclePoint(size * factor, 0, 0, true, true));
+		}
+
+		walls = getWalls(700);
+
 		break;
 
-	case 3: 
+	case 5: // Kill as many boids as possible before they flee, with the help of predators (no deadly laser), level 5
 		is3D = false;
+		isLaserLethal = false;
+		nrPredators = 20;
+		defaultSpawn = false;
+		LASER_SOFTNESS = 150.0f;
+		spawnAreaSizePredator = 30;
+		MAX_ACCELERATION_PREDATOR = MAX_ACCELERATION;
+		MAX_SPEED_PREDATOR = MAX_SPEED + 0.01f;
 
+		for (int i = 0; i < (nrBoids - nrPredators) / 4; ++i) {
+			boids.push_back(Boid(80, glm::vec3(200, 200, 0), false, is3D));
+			boids.push_back(Boid(80, glm::vec3(-200, 200, 0), false, is3D));
+			boids.push_back(Boid(80, glm::vec3(200, -200, 0), false, is3D));
+			boids.push_back(Boid(80, glm::vec3(-200, -200, 0), false, is3D));
+		}
+
+		for (int i = 0; i < (nrBoids - nrPredators) % 4; ++i) {
+			boids.push_back(Boid(80, glm::vec3(300, 300, 0), false, is3D));
+		}
+
+		for (int i = 0; i < nrPredators; ++i) {
+			boids.push_back(Boid(spawnAreaSizePredator, spawnAreaOffsetPredator, true, is3D));
+		}
+
+
+		points.push_back(ObstaclePoint(0, 0, 0, true, true));
+		points.push_back(ObstaclePoint(50, 0, 0, true, true));
+		points.push_back(ObstaclePoint(0, 50, 0, true, true));
+
+
+
+		walls = getWalls(650);
+
+		break;
+
+	case 4: // Kill as many boids as possible before they flee, using deadly laser, level 4
+		is3D = true;
+		isLaserLethal = true;
 		nrPredators = 0;
-		spawnAreaSize = 20;
-		spawnAreaOffset = glm::vec3(-80, 0, 0);
+		defaultSpawn = false;
+		DEATH_DISTANCE = 6.0f;
+		LASER_SOFTNESS = 150.0f;
 
-		points.push_back(ObstaclePoint(10, 0, 0, true, true));
-		points.push_back(ObstaclePoint(-30, 0, 0, false, false));
 
-		walls = getWalls(220);
+		for (int i = 0; i < nrBoids / 4; ++i) {
+			boids.push_back(Boid(80, glm::vec3(200, 200, 200), false, is3D));
+			boids.push_back(Boid(80, glm::vec3(-200, 200, 75), false, is3D));
+			boids.push_back(Boid(80, glm::vec3(200, -200, -75), false, is3D));
+			boids.push_back(Boid(80, glm::vec3(-200, -200, -200), false, is3D));
+		}
+
+		for (int i = 0; i < nrBoids % 4; ++i) {
+			boids.push_back(Boid(80, glm::vec3(300, 300, 0), false, is3D));
+		}
+
+		points.push_back(ObstaclePoint(0, 0, 0, true, true));
+		points.push_back(ObstaclePoint(50, 0, 0, true, true));
+		points.push_back(ObstaclePoint(0, 50, 0, true, true));
+
+
+
+		walls = getWalls(650);
 		break;
 
-	default:
+	case 3: // Help the agents avoid predators and flee to exit, WITHOUT deadly laser, Level 3 
+		is3D = false;
+		nrPredators = 20;
+		spawnAreaSize = 100;
+		spawnAreaOffset = glm::vec3(0, 200, 0);
+
+		spawnAreaSizePredator = 10;
+		spawnAreaOffsetPredator = glm::vec3(0, -200, 0);
+
+		points.push_back(ObstaclePoint(-30, 0, 0, false, false));
+		points.push_back(ObstaclePoint(-130, 0, 0, false, false));
+		points.push_back(ObstaclePoint(0, 0, 0, false, false));
+		points.push_back(ObstaclePoint(0, 0, 30, false, false));
+		points.push_back(ObstaclePoint(0, 0, 130, false, false));
+
+		points.push_back(ObstaclePoint(0, -200, 0, true, true));
+
+
+		walls = getWalls(700);
+		break;
+
+	case 2: // Help the agents avoid predators and flee to exit, WITH deadly laser, Level 2 
+		is3D = false;
+		isLaserLethal = true;
+
+
+		defaultSpawn = false;
+		nrPredators = nrBoids*0.02;
+		spawnAreaSizePredator = 130;
+
+
+		for (int i = 0; i < (nrBoids - nrPredators) / 2; ++i) {
+			boids.push_back(Boid(150, glm::vec3(-300,0,0), false, is3D));
+		}
+		for (int i = 0; i < (nrBoids - nrPredators) / 2 + ((nrBoids - nrPredators) % 2 == 1 ? 1 : 0); ++i) {
+			boids.push_back(Boid(150, glm::vec3(300, 0, 0), false, is3D));
+		}
+		for (int i = 0; i < nrPredators; ++i) {
+			boids.push_back(Boid(spawnAreaSizePredator, spawnAreaOffsetPredator, true, is3D));
+		}
+
+		points.push_back(ObstaclePoint(150, 0, 0, false, false));
+		points.push_back(ObstaclePoint(-150, 0, 0, false, false));
+		points.push_back(ObstaclePoint(0, 0, 0, true, true));
+
+		walls = getWalls(800);
+		break;
+
+	default: // Basic visuals of flock, screensaver, Level 1
 		is3D = true;
 
-		points.push_back(ObstaclePoint(100, 0, 0, true, true));
-		points.push_back(ObstaclePoint(-100, 0, 0, false, false));
-
-		walls = getWalls(500);
+		walls = getWalls(1000);
 		break;
 	}
 
 	//Create prey and predators
-	for (int i = 0; i < nrBoids - nrPredators; ++i) {
-		boids.push_back(Boid(spawnAreaSize, spawnAreaOffset, false, is3D));
-	}
-	for (int i = 0; i < nrPredators; ++i) {
-		boids.push_back(Boid(spawnAreaSizePredator, spawnAreaOffsetPredator, true, is3D));
+	if (defaultSpawn) {
+		for (int i = 0; i < nrBoids - nrPredators; ++i) {
+			boids.push_back(Boid(spawnAreaSize, spawnAreaOffset, false, is3D));
+		}
+		for (int i = 0; i < nrPredators; ++i) {
+			boids.push_back(Boid(spawnAreaSizePredator, spawnAreaOffsetPredator, true, is3D));
+		}
 	}
 	
 

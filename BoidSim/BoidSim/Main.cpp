@@ -27,7 +27,7 @@ double xpos, ypos; // cursor position
 bool cameraReset = true;
 				   
 // Number of boids, with nrPredators as predators. 
-const int nrBoids = 2000;
+const int nrBoids = 1000;
 
 // setup
 const unsigned int screenWidth = 1280, screenHeight = 720;
@@ -732,6 +732,21 @@ void processInput(GLFWwindow *window)
 	state = glfwGetKey(window, GLFW_KEY_3);
 	if (state == GLFW_PRESS) {
 		reset(nrBoids, 3);
+		resetCamera();
+	}
+	state = glfwGetKey(window, GLFW_KEY_4);
+	if (state == GLFW_PRESS) {
+		reset(nrBoids, 4);
+		resetCamera();
+	}
+	state = glfwGetKey(window, GLFW_KEY_5);
+	if (state == GLFW_PRESS) {
+		reset(nrBoids, 5);
+		resetCamera();
+	}
+	state = glfwGetKey(window, GLFW_KEY_6);
+	if (state == GLFW_PRESS) {
+		reset(nrBoids, 6);
 		resetCamera();
 	}
 
