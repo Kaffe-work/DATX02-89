@@ -44,6 +44,9 @@ std::vector<Boid> boids;
 std::vector<ObstaclePlane> walls;
 std::vector<ObstaclePoint> objects;
 
+float averages = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+
+
 // Boid attributes
 const float MAX_SPEED = 0.3f;
 const float MAX_ACCELERATION = 0.05f;
@@ -131,7 +134,6 @@ glm::vec3 getSteeringPredator(Boid & b) {
 		}
 		hunt = normalize(closestPrey.position - b.position - b.velocity);
 	}
-
 
 	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 10.0f*planeforce + 50.0f*hunt;
 	if (!is3D) { steering = glm::vec3(steering.x, steering.y, 0); }
@@ -234,6 +236,33 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 			}
 		}
 		flee = - normalize(flee * (1.0f / std::size(predators)) - b.position - b.velocity);
+	}
+
+	for (int i = 0; i < 7; i++) {
+		float length = 0;
+		switch (i) {
+		case 0:
+			break;
+
+		case 1:
+			break;
+
+		case 2:
+			break;
+
+		case 3:
+			break;
+
+		case 4:
+			break;
+
+		case 5:
+			break;
+
+		default: //6 flee
+			break;
+		}
+
 	}
 	
 	glm::vec3 steering = alignment + cohesion + 1.5f*separation + 10.0f*planeforce + 10.0f*pointforce + lineforce + flee;
