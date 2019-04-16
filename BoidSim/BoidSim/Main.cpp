@@ -38,7 +38,7 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // Vertex Array Object, Vertex/Element Buffer Objects, texture (can be reused)
-unsigned int VAO, VBO, EBO, tex1, tex2;
+unsigned int VAO, VBO, VBO2, EBO, tex1, tex2;
 
 // For ImGui
 bool show_demo_window = true;
@@ -492,6 +492,50 @@ int main()
 		1.0f, -1.0f,  1.0f
 	};
 
+	float obstacleVertices[] = {
+	-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+	 0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
+	 0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+	 0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+	-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+	-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+
+	-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+	 0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+	 0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+	 0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+	-0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
+	-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+
+	-0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+	-0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+	-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+	-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+	-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+	-0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+
+	 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+	 0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+	 0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+	 0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+	 0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+	 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+
+	-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+	 0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
+	 0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+	 0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+	-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+	-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+
+	-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+	 0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+	 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+	 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+	-0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
+	-0.5f,  0.5f, -0.5f,  0.0f, 1.0f
+	};
+
 
 	//Initialise boids, walls, objects
 	createLevel(nrBoids);
@@ -506,6 +550,14 @@ int main()
 	// generate things
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
+	glGenBuffers(1, &VBO2);
+
+	// setup obstacles VAO and VBO data
+	glBindVertexArray(VAO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO2);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(obstacleVertices), &obstacleVertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
 
 	// setup skybox VAO and VBO data
 	unsigned int skyboxVAO, skyboxVBO;
@@ -523,6 +575,7 @@ int main()
 		
 	// Build and compile shaders
 	Shader shader("simple.vert", "simple.frag");
+	Shader basicShader("basic.vert", "simple.frag");
 	Shader skybox("cube.vert", "cube.frag");
 	Shader laserShader("gui.vert", "simple.frag");
 	Shader guiShader("gui.vert", "gui.frag");
@@ -544,6 +597,9 @@ int main()
 	// skybox (background) uses the same projection matrix
 	skybox.use();
 	skybox.setMatrix("projection", projection);
+
+	basicShader.use();
+	basicShader.setMatrix("projection", projection);
 
 	// instantiate array for boids
 	glm::vec3 renderBoids[nrBoids*3*2]; // Each boid has three points and RGB color
@@ -632,8 +688,21 @@ int main()
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 		glDepthFunc(GL_LESS); // set depth function back to default
 
+		// Trying to draw obstacles the most simple way
+		basicShader.use();
+		glBindVertexArray(VAO);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO2);
+		for (ObstaclePoint o : points) {
+			// create model matrix from agent position
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, o.position);
+
+			basicShader.setMatrix("model", model);
+			glDrawArrays(GL_TRIANGLES, 0, 36);
+		}
+
+		// draw boids
 		shader.use();
-		// bind vertex array
 		glBindVertexArray(VAO);
 		// bind buffer object and boid array
 		glBindBuffer(GL_ARRAY_BUFFER, VBO);
