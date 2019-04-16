@@ -38,7 +38,7 @@ glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 0.0f;
 
 // Vertex Array Object, Vertex/Element Buffer Objects, texture (can be reused)
-unsigned int VAO, VBO, VBO2, EBO, tex1, tex2;
+unsigned int VAO, VBO, EBO, tex1, tex2;
 
 // For ImGui
 bool show_demo_window = true;
@@ -550,14 +550,6 @@ int main()
 	// generate things
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
-	glGenBuffers(1, &VBO2);
-
-	// setup obstacles VAO and VBO data
-	glBindVertexArray(VAO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO2);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(obstacleVertices), &obstacleVertices, GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
 
 	// setup skybox VAO and VBO data
 	unsigned int skyboxVAO, skyboxVBO;
@@ -690,12 +682,21 @@ int main()
 
 		// Trying to draw obstacles the most simple way
 		basicShader.use();
+		basicShader.setMatrix("view", view);
+
+		// bind obstacle vertices to vao/vbo
 		glBindVertexArray(VAO);
-		glBindBuffer(GL_ARRAY_BUFFER, VBO2);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(obstacleVertices), &obstacleVertices, GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+		glEnableVertexAttribArray(0);
+
+		// for every obstacle, draw it
 		for (ObstaclePoint o : points) {
 			// create model matrix from agent position
 			glm::mat4 model = glm::mat4(1.0f);
 			model = glm::translate(model, o.position);
+			std::cout << "ja" << std::endl;
 
 			basicShader.setMatrix("model", model);
 			glDrawArrays(GL_TRIANGLES, 0, 36);
