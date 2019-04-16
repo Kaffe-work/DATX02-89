@@ -256,10 +256,10 @@ unsigned int loadCubemap(std::vector<std::string> faces)
 void renderCrosshair() {
 	float vertices[] = {
 		// position hand     // texture coords
-	   -0.05f*screenHeight / screenWidth,-0.05f,  0.0f,  0.0f, 0.0f,
-		0.05f*screenHeight / screenWidth,-0.05f,  0.0f,  1.0f, 0.0f,
-		0.05f*screenHeight / screenWidth, 0.05f,  0.0f,  1.0f, 1.0f,
-	   -0.05f*screenHeight / screenWidth, 0.05f,  0.0f,  0.0f, 1.0f
+	   -0.02f*screenHeight / screenWidth,-0.02f,  0.0f,  0.0f, 0.0f,
+		0.02f*screenHeight / screenWidth,-0.02f,  0.0f,  1.0f, 0.0f,
+		0.02f*screenHeight / screenWidth, 0.02f,  0.0f,  1.0f, 1.0f,
+	   -0.02f*screenHeight / screenWidth, 0.02f,  0.0f,  0.0f, 1.0f
 	};
 
 	unsigned int indices[] = {
