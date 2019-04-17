@@ -409,10 +409,10 @@ int main()
 	glm::vec3 p3(0.0f, -1.0f, sqrt(3));
 
 	unsigned int indices[] = {  
-	0, 1, 2  
-	//0, 3, 1,    
-	//1, 3, 2,    
-	//0, 2, 3
+	0, 1, 2,  
+	0, 3, 1,    
+	1, 3, 2,    
+	0, 2, 3
 	};
 
 	// generate things
@@ -456,7 +456,7 @@ int main()
 	skybox.setMatrix("projection", projection);
 
 	// instantiate array for boids
-	glm::vec3 renderBoids[nrBoids*4*2]; // Each boid has three points and RGB color
+	glm::vec3 renderBoids[nrBoids*24]; // Each boid has three points and RGB color
 
 	// Dear ImGui setup
 	ImGui::CreateContext();
@@ -494,29 +494,48 @@ int main()
 		}
 
 		for (int i = 0; i < nrBoids; i++)
-			{
-				// Calculate new velocities for each boid, update pos given velocity
-				boids[i].velocity += getSteering(boids.at(i));
-				boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED;
-				boids[i].position += boids[i].velocity; 
+		{
+			// Calculate new velocities for each boid, update pos given velocity
+			boids[i].velocity += getSteering(boids.at(i));
+			boids[i].velocity = normalize(boids[i].velocity) * MAX_SPEED;
+			boids[i].position += boids[i].velocity;
 
-				// create model matrix from agent position
-				glm::mat4 model = glm::mat4(1.0f);
-				model = glm::translate(model, boids[i].position);
-				glm::vec3 v = glm::vec3(boids[i].velocity.z, 0, -boids[i].velocity.x);
-				float angle = acos(boids[i].velocity.y / glm::length(boids[i].velocity));
-				model = glm::rotate(model, angle, v);
+			// create model matrix from agent position
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, boids[i].position);
+			glm::vec3 v = glm::vec3(boids[i].velocity.z, 0, -boids[i].velocity.x);
+			float angle = acos(boids[i].velocity.y / glm::length(boids[i].velocity));
+			model = glm::rotate(model, angle, v);
 
-				// transform each vertex and add them to array
-				renderBoids[i*6 + 0] = view * model * glm::vec4(p0, 1.0f);
-				renderBoids[i*6 + 1] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 1
-				renderBoids[i*6 + 2] = view * model * glm::vec4(p1, 1.0f);
-				renderBoids[i*6 + 3] = glm::vec3(1.0f, 1.0f, 1.0f); // color vertex 2
-				renderBoids[i*6 + 4] = view * model * glm::vec4(p2, 1.0f);
-				renderBoids[i*6 + 5] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 3
-				//renderBoids[i*8 + 6] = view * model * glm::vec4(p3, 1.0f);
-				//renderBoids[i*8 + 7] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 3
-			}
+			// transform each vertex and add them to array
+			renderBoids[i * 24 + 0] = view * model * glm::vec4(p0, 1.0f);
+			renderBoids[i * 24 + 1] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 1
+			renderBoids[i * 24 + 2] = view * model * glm::vec4(p1, 1.0f);
+			renderBoids[i * 24 + 3] = glm::vec3(1.0f, 1.0f, 1.0f); // color vertex 2
+			renderBoids[i * 24 + 4] = view * model * glm::vec4(p2, 1.0f);
+			renderBoids[i * 24 + 5] = glm::vec3(0.0f, 0.0f, 0.0f); // color vertex 3
+
+			renderBoids[i * 24 + 6] = view * model * glm::vec4(p0, 1.0f);
+			renderBoids[i * 24 + 7] = glm::vec3(0.0f, 0.0f, 0.0f);
+			renderBoids[i * 24 + 8] = view * model * glm::vec4(p3, 1.0f);
+			renderBoids[i * 24 + 9] = glm::vec3(0.0f, 0.0f, 0.0f);
+			renderBoids[i * 24 + 10] = view * model * glm::vec4(p1, 1.0f);
+			renderBoids[i * 24 + 11] = glm::vec3(1.0f, 1.0f, 1.0f);
+
+			renderBoids[i * 24 + 12] = view * model * glm::vec4(p1, 1.0f);
+			renderBoids[i * 24 + 13] = glm::vec3(1.0f, 1.0f, 1.0f);
+			renderBoids[i * 24 + 14] = view * model * glm::vec4(p3, 1.0f);
+			renderBoids[i * 24 + 15] = glm::vec3(0.0f, 0.0f, 0.0f);
+			renderBoids[i * 24 + 16] = view * model * glm::vec4(p2, 1.0f);
+			renderBoids[i * 24 + 17] = glm::vec3(0.0f, 0.0f, 0.0f);
+
+			renderBoids[i * 24 + 18] = view * model * glm::vec4(p0, 1.0f);
+			renderBoids[i * 24 + 19] = glm::vec3(0.0f, 0.0f, 0.0f);
+			renderBoids[i * 24 + 20] = view * model * glm::vec4(p2, 1.0f);
+			renderBoids[i * 24 + 21] = glm::vec3(1.0f, 1.0f, 1.0f);
+			renderBoids[i * 24 + 22] = view * model * glm::vec4(p3, 1.0f);
+			renderBoids[i * 24 + 23] = glm::vec3(0.0f, 0.0f, 0.0f);
+		}
 
 		clearHashTable();
 
@@ -531,34 +550,18 @@ int main()
 		glDepthFunc(GL_LESS); // set depth function back to default
 
 		shader.use();
-		// bind vertex array
 		glBindVertexArray(VAO);
-		// bind buffer object and boid array
-
-		/*
 		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 3 * 2, &renderBoids[0], GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 24, &renderBoids[0], GL_STATIC_DRAW);
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
 		glEnableVertexAttribArray(0);
 
 		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
 		glEnableVertexAttribArray(1);
 
-		*/
+		
 
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 3 * 2, &renderBoids[0], GL_STATIC_DRAW);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-		glEnableVertexAttribArray(0);
-
-
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-		glEnableVertexAttribArray(1);
-
-		glDrawElements(GL_TRIANGLES, nrBoids * 3, GL_UNSIGNED_INT, 0);
+		glDrawElements(GL_TRIANGLES, nrBoids, GL_UNSIGNED_INT, 0);
 
 
 		// Draw 3 * nrBoids vertices
