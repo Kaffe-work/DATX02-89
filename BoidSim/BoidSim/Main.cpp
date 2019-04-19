@@ -302,12 +302,92 @@ void createImGuiWindow()
 	ImGui::End();
 }
 
+/**/
+void initCSShader()
+{
+	GLuint compute_shader;
+	GLuint compute_program;
+	static const GLchar* compute_source[] =
+	{
+	"#version 450 core \n"
+	" \n"
+	"layout (local_size_x = 32, local_size_y = 32) in; \n"
+	" \n"
+	"void main(void) \n"
+	"{ \n"
+	" // Do nothing \n"
+	"} \n"
+	};
+	// Create a shader, attach source, and compile.
+	compute_shader = glCreateShader(GL_COMPUTE_SHADER);
+	glShaderSource(compute_shader, 1, compute_source, NULL);
+	glCompileShader(compute_shader);
+	// Create a program, attach shader, link.
+	compute_program = glCreateProgram();
+	glAttachShader(compute_program, compute_shader);
+	glLinkProgram(compute_program);
+	// Delete shader because we're done
+}
+
+void initComputeShader() {
+	GLuint flock_buffer[2];
+	glGenBuffers(2, flock_buffer);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, flock_buffer[0]);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, nrBoids * sizeof(flock_member), NULL, GL_DYNAMIC_COPY);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, flock_buffer[1]);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, nrBoids * sizeof(flock_member), NULL, GL_DYNAMIC_COPY);
+
+	glGenBuffers(1, &geometry_buffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(geometry), geometry, GL_STATIC_DRAW);
+
+	glGenVertexArrays(2, flock_render_vao);
+
+	for (int i = 0; i < 2; i++)
+	{
+		glBindVertexArray(flock_render_vao[i]);
+		glBindBuffer(GL_ARRAY_BUFFER, geometry_buffer);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)(8 * sizeof(glm::vec3)));
+		glBindBuffer(GL_ARRAY_BUFFER, flock_buffer[i]);
+		glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(flock_member), (void*)sizeof(glm::vec4));
+		glVertexAttribDivisor(2, 1);
+		glVertexAttribDivisor(3, 1);
+
+		glEnableVertexAttribArray(0);
+		glEnableVertexAttribArray(1);
+		glEnableVertexAttribArray(2);
+		glEnableVertexAttribArray(3);
+	}
+
+	flock_update_program.use();
+	glm::vec3 goal(sinf(t * 0.34f), cosf(t * 0.29f), sinf(t * 0.12f) * cosf(t * 0.5f)));
+	goal = goal * glm::vec3(15.0f, 15.0f, 180.0f);
+	flock_update_program.setVec3("goal", goal);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, flock_buffer[frame_index]);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, flock_buffer[frame_index ^ 1]);
+	
+	glDispatchCompute(NUM_WORKGROUPS, 1, 1);
+
+	flock_render_program.use();
+	glm::mat4 mv_matrix(glm::lookAt(glm::vec3(0.0f, 0.0f, -400.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 proj_matrix = glm::perspective(60.0f, (float)screenWidth / (float)screenHeight, 0.1f, 3000.0f);
+	glm::mat4 mvp = proj_matrix * mv_matrix;
+
+	flock_render_program.setMatrix("mvp", mvp);
+	glBindVertexArray(flock_render_vao[frame_index]);
+	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 8, nrBoids);
+	frame_index ^= 1;
+}
+
+*/
+
+
 int main()
 {
 	// glfw: initialize and configure
 	glfwInit();
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Needed for OS X, and possibly Linux
 
