@@ -27,7 +27,7 @@ double xpos, ypos; // cursor position
 bool cameraReset = true;
 				   
 // Number of boids, with nrPredators as predators. 
-const int nrBoids = 2000;
+const int nrBoids = 1000;
 
 // setup
 const unsigned int screenWidth = 1280, screenHeight = 720;
@@ -35,7 +35,9 @@ const unsigned int screenWidth = 1280, screenHeight = 720;
 // camera settings
 glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
-double yaw = 1.6f, pitch = 0.0f;
+double yaw = 1.6f, pitch = 1.0f;
+
+std::vector<ObstaclePoint> objects;
 
 // Vertex Array Object, Vertex/Element Buffer Objects, texture (can be reused)
 unsigned int VAO, VBO, EBO, tex1, tex2;
@@ -542,14 +544,17 @@ int main()
 
 	
 
-	// one vector for each vertex
-	glm::vec3 p1(-1.0f, -1.0f, 0.0f);
-	glm::vec3 p2(0.0f, 1.0f, 0.0f);
-	glm::vec3 p3(1.0f, -1.0f, 0.0f);
+	// boid vertices
+	glm::vec3 p0(-1.0f, -1.0f, 0.0f);
+	glm::vec3 p1(0.0f, 1.5f, sqrt(3)/3);
+	glm::vec3 p2(1.0f, -1.0f, 0.0f);
+	glm::vec3 p3(0.0f, -1.0f, sqrt(3));
 
 	// generate things
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
+	glGenBuffers(1, &EBO);
+	glGenTextures(1, &tex1);
 
 	// setup skybox VAO and VBO data
 	unsigned int skyboxVAO, skyboxVBO;
@@ -560,10 +565,6 @@ int main()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-
-	// use the shader created earlier so we can attach matrices
-	glGenBuffers(1, &EBO);
-	glGenTextures(1, &tex1);
 		
 	// Build and compile shaders
 	Shader shader("simple.vert", "simple.frag");
@@ -594,7 +595,7 @@ int main()
 	basicShader.setMatrix("projection", projection);
 
 	// instantiate array for boids
-	glm::vec3 renderBoids[nrBoids*3*2]; // Each boid has three points and RGB color
+	glm::vec3 renderBoids[nrBoids*24]; // Each boid has three points and RGB color
 
 	// Dear ImGui setup
 	ImGui::CreateContext();
@@ -638,35 +639,58 @@ int main()
 		}
 
 		for (int i = 0; i < nrBoids; i++)
-			{
-				// Calculate new velocities for each boid, update pos given velocity
-				if (boids[i].isPredator){
-					boids[i].velocity += getSteeringPredator(boids.at(i));
-					boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED_PREDATOR;
-				}
-				else {
-					boids[i].velocity += getSteeringPrey(boids.at(i));
-					boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED;
-				}
-				
-				boids[i].position += boids[i].velocity;
-				
-
-				// create model matrix from agent position
-				glm::mat4 model = glm::mat4(1.0f);
-				model = glm::translate(model, boids[i].position);
-				glm::vec3 v = glm::vec3(boids[i].velocity.z, 0, -boids[i].velocity.x);
-				float angle = acos(boids[i].velocity.y / glm::length(boids[i].velocity));
-				model = glm::rotate(model, angle, v);
-
-				// transform each vertex and add them to array
-					renderBoids[i * 6] = view * model * glm::vec4(p1, 1.0f);
-					renderBoids[i * 6 + 1] = glm::vec3(1.0f) * (float)!boids[i].isPredator + glm::vec3(3.0f)*(float)!boids[i].isAlive; // color vertex 1
-					renderBoids[i * 6 + 2] = view * model * glm::vec4(p2, 1.0f);
-					renderBoids[i * 6 + 3] = glm::vec3(1.0f) * (float)!boids[i].isPredator + glm::vec3(3.0f)*(float)!boids[i].isAlive; // color vertex 2
-					renderBoids[i * 6 + 4] = view * model * glm::vec4(p3, 1.0f);
-					renderBoids[i * 6 + 5] = glm::vec3(1.0f) * (float)!boids[i].isPredator + glm::vec3(3.0f)*(float)!boids[i].isAlive; // color vertex 3
+		{
+			// Calculate new velocities for each boid, update pos given velocity
+			if (boids[i].isPredator) {
+				boids[i].velocity += getSteeringPredator(boids.at(i));
+				boids[i].velocity = normalize(boids[i].velocity) * MAX_SPEED_PREDATOR;
 			}
+			else {
+				boids[i].velocity += getSteeringPrey(boids.at(i));
+				boids[i].velocity = normalize(boids[i].velocity) * MAX_SPEED;
+			}
+
+			boids[i].position += boids[i].velocity;
+
+
+			// create model matrix from agent position
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, boids[i].position);
+			if (boids[i].isPredator) model = glm::scale(model, glm::vec3(2.0f));
+			glm::vec3 v = glm::vec3(boids[i].velocity.z, 0, -boids[i].velocity.x);
+			float angle = acos(boids[i].velocity.y / glm::length(boids[i].velocity));
+			model = glm::rotate(model, angle, v);
+
+			glm::vec3 color = glm::vec3(1.0f) * (float)!boids[i].isPredator + glm::vec3(3.0f) * (float)!boids[i].isAlive;
+			// transform each vertex and add them to array
+			renderBoids[i * 24 + 0] = view * model * glm::vec4(p0, 1.0f);
+			renderBoids[i * 24 + 1] = color;
+			renderBoids[i * 24 + 2] = view * model * glm::vec4(p1, 1.0f);
+			renderBoids[i * 24 + 3] = color;
+			renderBoids[i * 24 + 4] = view * model * glm::vec4(p2, 1.0f);
+			renderBoids[i * 24 + 5] = color;
+
+			renderBoids[i * 24 + 6] = view * model * glm::vec4(p0, 1.0f);
+			renderBoids[i * 24 + 7] = color;
+			renderBoids[i * 24 + 8] = view * model * glm::vec4(p3, 1.0f);
+			renderBoids[i * 24 + 9] = color;
+			renderBoids[i * 24 + 10] = view * model * glm::vec4(p1, 1.0f);
+			renderBoids[i * 24 + 11] = color;
+
+			renderBoids[i * 24 + 12] = view * model * glm::vec4(p1, 1.0f);
+			renderBoids[i * 24 + 13] = color;
+			renderBoids[i * 24 + 14] = view * model * glm::vec4(p3, 1.0f);
+			renderBoids[i * 24 + 15] = color;
+			renderBoids[i * 24 + 16] = view * model * glm::vec4(p2, 1.0f);
+			renderBoids[i * 24 + 17] = color;
+
+			renderBoids[i * 24 + 18] = view * model * glm::vec4(p0, 1.0f);
+			renderBoids[i * 24 + 19] = color;
+			renderBoids[i * 24 + 20] = view * model * glm::vec4(p2, 1.0f);
+			renderBoids[i * 24 + 21] = color;
+			renderBoids[i * 24 + 22] = view * model * glm::vec4(p3, 1.0f);
+			renderBoids[i * 24 + 23] = color;
+		}
 
 		clearHashTable();
 
@@ -695,11 +719,13 @@ int main()
 		for (ObstaclePoint o : points) {
 			// create model matrix from agent position
 			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, o.position);
-			std::cout << "ja" << std::endl;
+			model = glm::scale(glm::translate(model, o.position), glm::vec3(10.0f));
 
 			basicShader.setMatrix("model", model);
+
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 			glDrawArrays(GL_TRIANGLES, 0, 36);
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}
 
 		// draw boids
@@ -707,7 +733,7 @@ int main()
 		glBindVertexArray(VAO);
 		// bind buffer object and boid array
 		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 3 * 2, &renderBoids[0], GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 24, &renderBoids[0], GL_STATIC_DRAW);
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
 		glEnableVertexAttribArray(0);
 
@@ -715,7 +741,9 @@ int main()
 		glEnableVertexAttribArray(1);
 
 		// Draw 3 * nrBoids vertices
-		glDrawArrays(GL_TRIANGLES, 0, nrBoids * 3);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glDrawArrays(GL_TRIANGLES, 0, nrBoids * 12);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 		// unbind buffer and vertex array
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
