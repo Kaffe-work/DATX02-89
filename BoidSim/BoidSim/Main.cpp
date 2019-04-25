@@ -293,10 +293,10 @@ void renderCrosshair() {
 void renderLaser() {
 	float vertices[] = {
 		// positions         // color
-		0.6f,  -0.2f, 0.0f,  1.0f, 0.0f, 0.0f,
-		0.55f, -0.2f, 0.0f,  1.0f, 0.0f, 0.0f,
-		0.01f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
-		0.0f,   0.0f, 0.0f,  1.0f, 0.0f, 0.0f
+		0.3f,  -0.2f, 0.0f,  1.0f, 0.0f, 0.0f,
+		0.28f, -0.2f, 0.0f,  1.0f, 0.0f, 0.0f,
+		0.005f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
+	   -0.005f,   0.0f, 0.0f,  1.0f, 0.0f, 0.0f
 	};
 
 	glBindVertexArray(VAO);
@@ -322,10 +322,10 @@ void renderLaser() {
 void renderWeapon() {
 	float vertices[] = {
 		// position hand     // texture coords
-		0.1f,  0.0f,  0.0f,  0.0f, 0.0f,
-		1.2f,  0.0f,  0.0f,	 1.0f, 0.0f,
+		0.2f,  0.04f,  0.0f,  0.0f, 0.0f,
+		1.2f,  0.04f,  0.0f,	 1.0f, 0.0f,
 	    1.2f, -1.0f,  0.0f,  1.0f, 1.0f,
-		0.1f, -1.0f,  0.0f,  0.0f, 1.0f
+		0.2f, -1.0f,  0.0f,  0.0f, 1.0f
 	};
 
 	unsigned int indices[] = {
