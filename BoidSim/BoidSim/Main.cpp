@@ -27,6 +27,7 @@ double xpos, ypos; // cursor position
 
 // setup
 const unsigned int screenWidth = 1280, screenHeight = 720;
+GLFWwindow* window;
 
 // camera settings
 glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
@@ -41,8 +42,6 @@ const int level = 1;
 
 // Level attributes
 std::vector<Boid> boids;
-std::vector<ObstaclePlane> walls;
-std::vector<ObstaclePoint> objects;
 
 // Boid attributes
 const float MAX_SPEED = 0.3f;
@@ -50,13 +49,47 @@ const float MAX_ACCELERATION = 0.05f;
 const float SOFTNESS = 10.0f;
 bool repellLine = false;
 
-// Vertex Array Object, Vertex/Element Buffer Objects, texture (can be reused)
-unsigned int VAO, VBO, EBO, tex1, tex2;
+// Compute shader stuff
+GLuint flock_buffer[2], flock_render_vao[2];
+GLuint geometry_buffer, flock_update_program, flock_render_program;
+GLuint frame_index = 0;
+enum
+{
+	WORKGROUP_SIZE = 256,
+	NUM_WORKGROUPS = 256,
+	FLOCK_SIZE = (NUM_WORKGROUPS * WORKGROUP_SIZE)
+};
+static const glm::vec3 geometry[] =
+{
+	// Positions
+	glm::vec3(-5.0f, 1.0f, 0.0f),
+	glm::vec3(-1.0f, 1.5f, 0.0f),
+	glm::vec3(-1.0f, 1.5f, 7.0f),
+	glm::vec3(0.0f, 0.0f, 0.0f),
+	glm::vec3(0.0f, 0.0f, 10.0f),
+	glm::vec3(1.0f, 1.5f, 0.0f),
+	glm::vec3(1.0f, 1.5f, 7.0f),
+	glm::vec3(5.0f, 1.0f, 0.0f),
 
-// For ImGui
-bool show_demo_window = true;
-bool show_another_window = false;
-ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+	// Normals
+	glm::vec3(0.0f),
+	glm::vec3(0.0f),
+	glm::vec3(0.107f, -0.859f, 0.00f),
+	glm::vec3(0.832f, 0.554f, 0.00f),
+	glm::vec3(-0.59f, -0.395f, 0.00f),
+	glm::vec3(-0.832f, 0.554f, 0.00f),
+	glm::vec3(0.295f, -0.196f, 0.00f),
+	glm::vec3(0.124f, 0.992f, 0.00f),
+};
+struct flock_member
+{
+	glm::vec3 position;
+	unsigned int : 32;
+	glm::vec3 velocity;
+	unsigned int : 32;
+};
+
+
 
 // If e.g. percentage = 1 => vec3(0,0,0) will be returned with 99% probability
 glm::vec3 getRandomVectorWithChance(int percentage) {
@@ -69,7 +102,7 @@ float getRandomFloatAroundOne(int rangePercent) {
 	return 1.0f + ((rand() % 1001 - 500) % (rangePercent * 10)) / 1000.0f;
 }
 
-glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
+/*glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
 
 	glm::vec3 alignment = glm::vec3(0.0);
 	glm::vec3 separation = glm::vec3(0.0);
@@ -127,228 +160,33 @@ glm::vec3 getSteering(Boid & b) { // Flocking rules are implemented here
 	return magnitude*glm::normalize(steering);
 
 }
+*/
 
-unsigned int loadCubemap(std::vector<std::string> faces)
-{
-	unsigned int textureID;
-	glGenTextures(1, &textureID);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+void setupCSBuffers() {
 
-	int width, height, nrChannels;
-	for (unsigned int i = 0; i < faces.size(); i++)
-	{
-		unsigned char *data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
-		if (data)
-		{
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
-				0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data
-			);
-			stbi_image_free(data);
-		}
-		else
-		{
-			std::cout << "Cubemap texture failed to load at path: " << faces[i] << std::endl;
-			stbi_image_free(data);
-		}
-	}
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-	return textureID;
-}
-
-void renderCrosshair() {
-	float vertices[] = {
-		// position hand     // texture coords
-	   -0.05f*screenHeight / screenWidth,-0.05f,  0.0f,  0.0f, 0.0f,
-		0.05f*screenHeight / screenWidth,-0.05f,  0.0f,  1.0f, 0.0f,
-		0.05f*screenHeight / screenWidth, 0.05f,  0.0f,  1.0f, 1.0f,
-	   -0.05f*screenHeight / screenWidth, 0.05f,  0.0f,  0.0f, 1.0f
-	};
-
-	unsigned int indices[] = {
-		0, 1, 3,   // first triangle
-		1, 2, 3    // second triangle
-	};
-
-	glBindVertexArray(VAO);
-
-	// For the indices
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	// position attribute
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	// texture coordinates
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(2);
-
-	glBindTexture(GL_TEXTURE_2D, tex2);
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-}
-
-void renderLaser() {
-	float vertices[] = {
-		// positions         // color
-		0.6f,  -0.2f, 0.0f,  1.0f, 0.0f, 0.0f,
-		0.55f, -0.2f, 0.0f,  1.0f, 0.0f, 0.0f,
-		0.01f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
-		0.0f,   0.0f, 0.0f,  1.0f, 0.0f, 0.0f
-	};
-
-	glBindVertexArray(VAO);
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	// position attribute
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-	// color attribute
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-	// unbind buffer and vertex array
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-
-}
-
-void renderWeapon() {
-	float vertices[] = {
-		// position hand     // texture coords
-		0.1f,  0.0f,  0.0f,  0.0f, 0.0f,
-		1.2f,  0.0f,  0.0f,	 1.0f, 0.0f,
-	    1.2f, -1.0f,  0.0f,  1.0f, 1.0f,
-		0.1f, -1.0f,  0.0f,  0.0f, 1.0f
-	};
-
-	unsigned int indices[] = {
-		0, 1, 3,   // first triangle
-		1, 2, 3    // second triangle
-	};
-
-	glBindVertexArray(VAO);
-	
-	// For the indices
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	// position attribute
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-	
-	// texture coordinates
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(2);
-
-	glBindTexture(GL_TEXTURE_2D, tex1);
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-}
-
-void createTexture(unsigned int &ref, const char* path) {
-	// Bind texture for gun
-	glBindTexture(GL_TEXTURE_2D, ref);
-	// No repeat, use actual size of picture
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	// set texture filtering parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	// load image, create texture
-	int width, height, nrChannels;
-	unsigned char *data = stbi_load(path, &width, &height, &nrChannels, 0);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	stbi_image_free(data);
-}
-
-void createImGuiWindow()
-{
-	static float f = 0.0f;
-	static int counter = 0;
-
-	ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-	ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-	ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-	ImGui::Checkbox("Another Window", &show_another_window);
-
-	ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-	ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-	if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-		counter++;
-	ImGui::SameLine();
-	ImGui::Text("counter = %d", counter);
-
-	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-	ImGui::End();
-}
-
-/**/
-void initCSShader()
-{
-	GLuint compute_shader;
-	GLuint compute_program;
-	static const GLchar* compute_source[] =
-	{
-	"#version 450 core \n"
-	" \n"
-	"layout (local_size_x = 32, local_size_y = 32) in; \n"
-	" \n"
-	"void main(void) \n"
-	"{ \n"
-	" // Do nothing \n"
-	"} \n"
-	};
-	// Create a shader, attach source, and compile.
-	compute_shader = glCreateShader(GL_COMPUTE_SHADER);
-	glShaderSource(compute_shader, 1, compute_source, NULL);
-	glCompileShader(compute_shader);
-	// Create a program, attach shader, link.
-	compute_program = glCreateProgram();
-	glAttachShader(compute_program, compute_shader);
-	glLinkProgram(compute_program);
-	// Delete shader because we're done
-}
-
-void initComputeShader() {
-	GLuint flock_buffer[2];
 	glGenBuffers(2, flock_buffer);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, flock_buffer[0]);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, nrBoids * sizeof(flock_member), NULL, GL_DYNAMIC_COPY);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, FLOCK_SIZE * sizeof(flock_member), NULL, GL_DYNAMIC_COPY);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, flock_buffer[1]);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, nrBoids * sizeof(flock_member), NULL, GL_DYNAMIC_COPY);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, FLOCK_SIZE * sizeof(flock_member), NULL, GL_DYNAMIC_COPY);
+
+	int i;
 
 	glGenBuffers(1, &geometry_buffer);
+	glBindBuffer(GL_ARRAY_BUFFER, geometry_buffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(geometry), geometry, GL_STATIC_DRAW);
 
 	glGenVertexArrays(2, flock_render_vao);
 
-	for (int i = 0; i < 2; i++)
+	for (i = 0; i < 2; i++)
 	{
 		glBindVertexArray(flock_render_vao[i]);
 		glBindBuffer(GL_ARRAY_BUFFER, geometry_buffer);
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)(8 * sizeof(glm::vec3)));
+
 		glBindBuffer(GL_ARRAY_BUFFER, flock_buffer[i]);
+		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(flock_member), NULL);
 		glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(flock_member), (void*)sizeof(glm::vec4));
 		glVertexAttribDivisor(2, 1);
 		glVertexAttribDivisor(3, 1);
@@ -358,31 +196,9 @@ void initComputeShader() {
 		glEnableVertexAttribArray(2);
 		glEnableVertexAttribArray(3);
 	}
-
-	flock_update_program.use();
-	glm::vec3 goal(sinf(t * 0.34f), cosf(t * 0.29f), sinf(t * 0.12f) * cosf(t * 0.5f)));
-	goal = goal * glm::vec3(15.0f, 15.0f, 180.0f);
-	flock_update_program.setVec3("goal", goal);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, flock_buffer[frame_index]);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, flock_buffer[frame_index ^ 1]);
-	
-	glDispatchCompute(NUM_WORKGROUPS, 1, 1);
-
-	flock_render_program.use();
-	glm::mat4 mv_matrix(glm::lookAt(glm::vec3(0.0f, 0.0f, -400.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	glm::mat4 proj_matrix = glm::perspective(60.0f, (float)screenWidth / (float)screenHeight, 0.1f, 3000.0f);
-	glm::mat4 mvp = proj_matrix * mv_matrix;
-
-	flock_render_program.setMatrix("mvp", mvp);
-	glBindVertexArray(flock_render_vao[frame_index]);
-	glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 8, nrBoids);
-	frame_index ^= 1;
 }
 
-*/
-
-
-int main()
+int initGLFW()
 {
 	// glfw: initialize and configure
 	glfwInit();
@@ -392,7 +208,7 @@ int main()
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Needed for OS X, and possibly Linux
 
 	// glfw: window creation
-	GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", glfwGetPrimaryMonitor(), NULL);
+	window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", NULL, NULL);
 	if (window == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
@@ -401,7 +217,7 @@ int main()
 	}
 	glfwMakeContextCurrent(window);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-	
+
 	// GLFW catches the cursor
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
@@ -411,236 +227,80 @@ int main()
 		std::cout << "Failed to initialize GLAD" << std::endl;
 		return -1;
 	}
+}
 
-	// load background (cubemap)
-	std::vector<std::string> faces
-	{
-		    "skybox/right.jpg",
-			"skybox/left.jpg",
-			"skybox/top.jpg",
-			"skybox/bottom.jpg",
-			"skybox/front.jpg",
-			"skybox/back.jpg"
-	};
-	unsigned int cubemapTexture = loadCubemap(faces);
+int main()
+{
+	initGLFW();
 
-	float skyboxVertices[] = {
-		// positions          
-		-1.0f,  1.0f, -1.0f,
-		-1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f,
-		1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-
-		-1.0f, -1.0f,  1.0f,
-		-1.0f, -1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f,  1.0f,
-		-1.0f, -1.0f,  1.0f,
-
-		1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f,
-
-		-1.0f, -1.0f,  1.0f,
-		-1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f, -1.0f,  1.0f,
-		-1.0f, -1.0f,  1.0f,
-
-		-1.0f,  1.0f, -1.0f,
-		1.0f,  1.0f, -1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		-1.0f,  1.0f,  1.0f,
-		-1.0f,  1.0f, -1.0f,
-
-		-1.0f, -1.0f, -1.0f,
-		-1.0f, -1.0f,  1.0f,
-		1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f,
-		-1.0f, -1.0f,  1.0f,
-		1.0f, -1.0f,  1.0f
-	};
+	// Compute shader
+	Shader flock_update_program("flocking.comp");
+	Shader flock_render_program("render.vert", "render.frag");
 
 
 	//Initialise boids, walls, objects
-	boids = getLevelBoids(level, nrBoids);
-	walls = getLevelWalls(level);
-	objects = getLevelObjects(level);
+	//boids = getLevelBoids(level, nrBoids);
+	setupCSBuffers();
 
-	// one vector for each vertex
-	glm::vec3 p1(-1.0f, -1.0f, 0.0f);
-	glm::vec3 p2(0.0f, 1.0f, 0.0f);
-	glm::vec3 p3(1.0f, -1.0f, 0.0f);
+	glBindBuffer(GL_ARRAY_BUFFER, flock_buffer[0]);
+	flock_member* ptr = reinterpret_cast<flock_member*>(glMapBufferRange(GL_ARRAY_BUFFER, 0, FLOCK_SIZE * sizeof(flock_member), GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT));
 
-	// generate things
-	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
+	for (int i = 0; i < FLOCK_SIZE; i++)
+	{
+		ptr[i].position = glm::vec3(rand() % 161 - 80, rand() % 161 - 80, rand() % 81 - 40);
+		ptr[i].velocity = glm::vec3(rand() % 161 - 80, rand() % 161 - 80, rand() % 81 - 40);
+	}
 
-	// setup skybox VAO and VBO data
-	unsigned int skyboxVAO, skyboxVBO;
-	glGenVertexArrays(1, &skyboxVAO);
-	glGenBuffers(1, &skyboxVBO);
-	glBindVertexArray(skyboxVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 
-	// use the shader created earlier so we can attach matrices
-	glGenBuffers(1, &EBO);
-	glGenTextures(1, &tex1);
-		
-	// Build and compile shaders
-	Shader shader("simple.vert", "simple.frag");
-	Shader skybox("cube.vert", "cube.frag");
-	Shader laserShader("gui.vert", "simple.frag");
-	Shader guiShader("gui.vert", "gui.frag");
-
-	// Create textures
-	createTexture(tex1, "rifle.png");
-	createTexture(tex2, "crosshair.png");
-
-	// use (bind) the shader 1 so that we can attach matrices
-	shader.use();
-
-	// instantiate transformation matrices
 	glm::mat4 projection, view, model;
 	// projection will always be the same: define FOV, aspect ratio and view frustum (near & far plane)
 	projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 1000.0f);
-	// set projection matrix as uniform (attach to bound shader)
-	shader.setMatrix("projection", projection);
+	glUnmapBuffer(GL_ARRAY_BUFFER);
 
-	// skybox (background) uses the same projection matrix
-	skybox.use();
-	skybox.setMatrix("projection", projection);
-
-	// instantiate array for boids
-	glm::vec3 renderBoids[nrBoids*3*2]; // Each boid has three points and RGB color
-
-	// Dear ImGui setup
-	ImGui::CreateContext();
-	ImGui::StyleColorsDark();
-	ImGui_ImplGlfw_InitForOpenGL(window, true);
-	ImGui_ImplOpenGL3_Init("#version 330"); // glsl version
-
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LEQUAL);
 	// render loop
+	float t = 0;
 	// -----------
 	while (!glfwWindowShouldClose(window))
 	{
+		t++;
 		// Need to choose shader since we now have 2
-		shader.use();
+		flock_update_program.use();
 		// if got input, processed here
 		processInput(window);
-
-		// Setup frame for ImGui
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
-		ImGui::NewFrame();
 
 		// update camera direction, rotation
 		cameraDir = glm::vec3(cos(pitch)*cos(yaw), sin(-pitch), cos(pitch)*sin(yaw));
 		normalize(cameraDir);
 		// calculate view-matrix based on cameraDir and cameraPos
 		view = glm::lookAt(cameraPos, cameraPos + cameraDir, glm::vec3(0.0f, 1.0f, 0.0f));
-		// clear whatever was on screen last frame
+
+		glm::vec3 goal(sinf(0.34f), cosf(0.29f), sinf(0.12f)* cosf(0.5f));
+		goal = goal * glm::vec3(15.0f, 15.0f, 180.0f);
+		flock_update_program.setVec3("goal", goal);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, flock_buffer[frame_index]);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, flock_buffer[frame_index ^ 1]);
+
+		glDispatchCompute(NUM_WORKGROUPS, 1, 1);
 
 		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		// Put all boids in the hash table so we can use it in the next loop
-		for (Boid& b : boids){
-			putInHashTable(b);
-		}
+		flock_render_program.use();
+		glm::mat4 mvp = projection * view;
 
-		for (int i = 0; i < nrBoids; i++)
-			{
-				// Calculate new velocities for each boid, update pos given velocity
-				boids[i].velocity += getSteering(boids.at(i));
-				boids[i].velocity = normalize(boids[i].velocity)*MAX_SPEED;
-				boids[i].position += boids[i].velocity; 
-
-				// create model matrix from agent position
-				glm::mat4 model = glm::mat4(1.0f);
-				model = glm::translate(model, boids[i].position);
-				glm::vec3 v = glm::vec3(boids[i].velocity.z, 0, -boids[i].velocity.x);
-				float angle = acos(boids[i].velocity.y / glm::length(boids[i].velocity));
-				model = glm::rotate(model, angle, v);
-
-				// transform each vertex and add them to array
-				renderBoids[i*6] = view * model * glm::vec4(p1, 1.0f);
-				renderBoids[i*6 + 1] = glm::vec3(0.0f, 1.0f, 0.0f); // color vertex 1
-				renderBoids[i*6 + 2] = view * model * glm::vec4(p2, 1.0f);
-				renderBoids[i*6 + 3] = glm::vec3(1.0f, 0.0f, 0.0f); // color vertex 2
-				renderBoids[i*6 + 4] = view * model * glm::vec4(p3, 1.0f);
-				renderBoids[i*6 + 5] = glm::vec3(0.0f, 0.0f, 1.0f); // color vertex 3
-			}
-
-		clearHashTable();
-
-		// draw skybox
-		glDepthFunc(GL_LEQUAL);
-		skybox.use();
-		skybox.setMatrix("view", glm::mat4(glm::mat3(view)));
-		// ... set view and projection matrix
-		glBindVertexArray(skyboxVAO);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		glDepthFunc(GL_LESS); // set depth function back to default
-
-		shader.use();
-		// bind vertex array
-		glBindVertexArray(VAO);
-		// bind buffer object and boid array
-		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 3 * 2, &renderBoids[0], GL_STATIC_DRAW);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-		glEnableVertexAttribArray(0);
-
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-		glEnableVertexAttribArray(1);
-
-		// Draw 3 * nrBoids vertices
-		glDrawArrays(GL_TRIANGLES, 0, nrBoids * 3);
-
-		// unbind buffer and vertex array
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		glBindVertexArray(0);
-
-
-		if (repellLine) {
-			laserShader.use();
-			renderLaser();
-		}
-
-		guiShader.use();
-		renderWeapon();
-		renderCrosshair();
-
-		// ImGui create/render window
-		createImGuiWindow();
-		ImGui::Render();
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		flock_render_program.setMatrix("mvp", mvp);
+		glBindVertexArray(flock_render_vao[frame_index]);
+		glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 8, FLOCK_SIZE);
+		frame_index ^= 1;
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
 
-	// optional: de-allocate all resources once they've outlived their purpose:
-	glDeleteVertexArrays(1, &VAO);
-	glDeleteBuffers(1, &VBO);
-
 	// terminate, clearing all previously allocated GLFW/ImGui resources.
-	ImGui_ImplGlfw_Shutdown();
-	ImGui::DestroyContext();
 	glfwTerminate();
 	return 0;
 }

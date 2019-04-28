@@ -26,6 +26,7 @@ public:
 		// ensure ifstream objects can throw exceptions:
 		vShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 		fShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+
 		try
 		{
 			// open files
@@ -69,6 +70,46 @@ public:
 		// delete the shaders as they're linked into our program now and no longer necessary
 		glDeleteShader(vertex);
 		glDeleteShader(fragment);
+	}
+	Shader(const char* computePath)
+	{
+		// 1. retrieve the vertex/fragment source code from filePath
+		std::string computeCode;
+		std::ifstream csShaderFile;
+		// ensure ifstream objects can throw exceptions:
+		csShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+
+		try
+		{
+			// open files
+			csShaderFile.open(computePath);
+			std::stringstream csShaderStream;
+			// read file's buffer contents into streams
+			csShaderStream << csShaderFile.rdbuf();
+			// close file handlers
+			csShaderFile.close();
+			// convert stream into string
+			computeCode = csShaderStream.str();
+		}
+		catch (std::ifstream::failure e)
+		{
+			std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ" << std::endl;
+		}
+		const char* csShaderCode = computeCode.c_str();
+		// 2. compile shaders
+		unsigned int compute;
+		// compute Shader
+		compute = glCreateShader(GL_COMPUTE_SHADER);
+		glShaderSource(compute, 1, &csShaderCode, NULL);
+		glCompileShader(compute);
+		checkCompileErrors(compute, "COMPUTE");
+		// shader Program
+		ID = glCreateProgram();
+		glAttachShader(ID, compute);
+		glLinkProgram(ID);
+		checkCompileErrors(ID, "PROGRAM");
+		// delete the shaders as they're linked into our program now and no longer necessary
+		glDeleteShader(compute);
 	}
 	// activate the shader
 	// ------------------------------------------------------------------------
