@@ -22,21 +22,16 @@ double xpos, ypos; // cursor position
 
 GLFWwindow* window;
 
-bool cameraReset = true;
-				   
-// Number of boids, with nrPredators as predators. 
-const int nrBoids = 1000;
-
-// setup
+bool cameraReset = true; 
+const int nrBoids = 100000;
 const unsigned int screenWidth = 1280, screenHeight = 720;
-
-// camera settings
 glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 1.0f;
-
-// Vertex Array Object, Vertex/Element Buffer Objects, texture (can be reused)
 unsigned int VAO, VBO;
+int frame = 0;
+float fps;
+float avgFps = 0;
 
 glm::vec3 getSteeringPredator(Boid & b) {
 	if (!b.isAlive) {
@@ -173,7 +168,7 @@ void createImGuiWindow()
 
 	ImGui::Begin("Performance:");
 
-	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+	ImGui::Text("Application average %.3f ms/frame (%.1f FPS), avgFps: %.1f", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate, avgFps);
 
 	ImGui::End();
 }
@@ -253,12 +248,16 @@ int main()
 	ImGui::StyleColorsDark();
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 330"); // glsl version
+	fps = ImGui::GetIO().Framerate;
 
 
 	// render loop
 	// -----------
 	while (!glfwWindowShouldClose(window))
 	{
+		fps += ImGui::GetIO().Framerate;
+		frame++;
+		if (frame % 100 == 0) avgFps = fps / frame; frame = 0;
 		// Need to choose shader since we now have 2
 		shader.use();
 		// if got input, processed here
