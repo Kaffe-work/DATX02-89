@@ -229,6 +229,17 @@ int initGLFW()
 	}
 }
 
+void createImGuiWindow()
+{
+	static float f = 0.0f;
+	static int counter = 0;
+
+	ImGui::Begin("Performance");                          // Create a window called "Hello, world!" and append into it.
+
+	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+	ImGui::End();
+}
+
 int main()
 {
 	initGLFW();
@@ -261,7 +272,13 @@ int main()
 	glDepthFunc(GL_LEQUAL);
 	// render loop
 	float t = 0;
-	// -----------
+
+	// Dear ImGui setup
+	ImGui::CreateContext();
+	ImGui::StyleColorsDark();
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init("#version 330"); // glsl version
+
 	while (!glfwWindowShouldClose(window))
 	{
 		t++;
@@ -269,6 +286,12 @@ int main()
 		flock_update_program.use();
 		// if got input, processed here
 		processInput(window);
+
+		// Setup frame for ImGui
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
 
 		// update camera direction, rotation
 		cameraDir = glm::vec3(cos(pitch)*cos(yaw), sin(-pitch), cos(pitch)*sin(yaw));
@@ -295,12 +318,20 @@ int main()
 		glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 8, FLOCK_SIZE);
 		frame_index ^= 1;
 
+
+		// ImGui create/render window
+		createImGuiWindow();
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
 
 	// terminate, clearing all previously allocated GLFW/ImGui resources.
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
 	glfwTerminate();
 	return 0;
 }
