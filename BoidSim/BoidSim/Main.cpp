@@ -16,13 +16,11 @@
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-#include <iostream>
-
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 double xpos, ypos; // cursor position
+
+GLFWwindow* window;
 
 bool cameraReset = true;
 				   
@@ -37,15 +35,8 @@ glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
 double yaw = 1.6f, pitch = 1.0f;
 
-std::vector<ObstaclePoint> objects;
-
 // Vertex Array Object, Vertex/Element Buffer Objects, texture (can be reused)
-unsigned int VAO, VBO, EBO, tex1, tex2;
-
-// For ImGui
-bool show_demo_window = true;
-bool show_another_window = false;
-ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+unsigned int VAO, VBO;
 
 glm::vec3 getSteeringPredator(Boid & b) {
 	if (!b.isAlive) {
@@ -86,24 +77,6 @@ glm::vec3 getSteeringPredator(Boid & b) {
 		separation = normalize(separation * (1.0f / std::size(predators)) - b.velocity);
 	}
 
-	//Avoid walls
-	for (ObstaclePlane o : walls) {
-		glm::vec3 v = b.position - o.point;
-		float distance = PLANE_SOFTNESS / glm::dot(v, o.normal);
-		planeforce += normalize(o.normal)*distance - b.velocity;
-	}
-
-	//Avoid player controlled line
-	if (isLaserActive) {
-		glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
-		if (isLaserLethal && distance(b.position, point) < DEATH_DISTANCE) {
-			b.isAlive = false;
-			scorePositive++;
-			return glm::vec3(0.0);
-		}
-		lineforce = (isLaserRepellant ? 1.0f : -1.0f) * normalize(b.position - point) * LASER_SOFTNESS / (distance(b.position, point)) - b.velocity;
-	}
-
 	//Hunt
 	if (size(prey) > 0) {
 		Boid closestPrey = prey[0];
@@ -124,12 +97,7 @@ glm::vec3 getSteeringPredator(Boid & b) {
 	return magnitude * glm::normalize(steering);
 }
 
-
 glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
-
-	if (!b.isAlive) {
-		return glm::vec3(0.0);
-	}
 
 	glm::vec3 alignment = glm::vec3(0.0);
 	glm::vec3 separation = glm::vec3(0.0);
@@ -176,31 +144,6 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 
 	}
 
-	//Avoid/steer towards an obstaclepoint, and "Exit (die)"
-	for (ObstaclePoint f : points) {
-		if (f.lethality && distance(b.position, f.position) < DEATH_DISTANCE) {
-			b.isAlive = false;
-			scorePositive++;
-			return glm::vec3(0.0);
-		}
-		pointforce += (f.attractive ? -1.0f : 1.0f) * normalize(b.position - f.position) * 2.0f / distance(b.position, f.position);
-	}
-	if (std::size(points) > 0) {
-		pointforce = normalize(pointforce * (1.0f / std::size(points)) - b.velocity);
-	}
-
-	//Avoid player controlled line
-	if (isLaserActive) {
-		glm::vec3 point = cameraPos + dot(b.position - cameraPos, cameraDir) / dot(cameraDir, cameraDir) * (cameraDir);
-		if (isLaserLethal && distance(b.position, point) < DEATH_DISTANCE) {
-			b.isAlive = false;
-			scoreNegative++;
-			return glm::vec3(0.0);
-		}
-		lineforce = (isLaserRepellant ? 1.0f : -1.0f) * normalize(b.position - point) * LASER_SOFTNESS / (distance(b.position, point)) - b.velocity;
-	}
-
-
 	//Flee predators and check death
 	if (size(predators) > 0) {
 		for (Boid n : predators) {
@@ -223,180 +166,15 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 
 }
 
-unsigned int loadCubemap(std::vector<std::string> faces)
-{
-	unsigned int textureID;
-	glGenTextures(1, &textureID);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
-
-	int width, height, nrChannels;
-	for (unsigned int i = 0; i < faces.size(); i++)
-	{
-		unsigned char *data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
-		if (data)
-		{
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
-				0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data
-			);
-			stbi_image_free(data);
-		}
-		else
-		{
-			std::cout << "Cubemap texture failed to load at path: " << faces[i] << std::endl;
-			stbi_image_free(data);
-		}
-	}
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-
-	return textureID;
-}
-
-void renderCrosshair() {
-	float vertices[] = {
-		// position hand     // texture coords
-	   -0.02f*screenHeight / screenWidth,-0.02f,  0.0f,  0.0f, 0.0f,
-		0.02f*screenHeight / screenWidth,-0.02f,  0.0f,  1.0f, 0.0f,
-		0.02f*screenHeight / screenWidth, 0.02f,  0.0f,  1.0f, 1.0f,
-	   -0.02f*screenHeight / screenWidth, 0.02f,  0.0f,  0.0f, 1.0f
-	};
-
-	unsigned int indices[] = {
-		0, 1, 3,   // first triangle
-		1, 2, 3    // second triangle
-	};
-
-	glBindVertexArray(VAO);
-
-	// For the indices
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	// position attribute
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	// texture coordinates
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(2);
-
-	glBindTexture(GL_TEXTURE_2D, tex2);
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-}
-
-void renderLaser() {
-	float vertices[] = {
-		// positions         // color
-		0.3f,  -0.2f, 0.0f,  1.0f, 0.0f, 0.0f,
-		0.28f, -0.2f, 0.0f,  1.0f, 0.0f, 0.0f,
-		0.005f,  0.0f, 0.0f,  1.0f, 0.0f, 0.0f,
-	   -0.005f,   0.0f, 0.0f,  1.0f, 0.0f, 0.0f
-	};
-
-	glBindVertexArray(VAO);
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	// position attribute
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-	// color attribute
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-	// unbind buffer and vertex array
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-
-}
-
-void renderWeapon() {
-	float vertices[] = {
-		// position hand     // texture coords
-		0.2f,  0.04f,  0.0f,  0.0f, 0.0f,
-		1.2f,  0.04f,  0.0f,	 1.0f, 0.0f,
-	    1.2f, -1.0f,  0.0f,  1.0f, 1.0f,
-		0.2f, -1.0f,  0.0f,  0.0f, 1.0f
-	};
-
-	unsigned int indices[] = {
-		0, 1, 3,   // first triangle
-		1, 2, 3    // second triangle
-	};
-
-	glBindVertexArray(VAO);
-	
-	// For the indices
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	// position attribute
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-	
-	// texture coordinates
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(2);
-
-	glBindTexture(GL_TEXTURE_2D, tex1);
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-}
-
-void createTexture(unsigned int &ref, const char* path) {
-	// Bind texture for gun
-	glBindTexture(GL_TEXTURE_2D, ref);
-	// No repeat, use actual size of picture
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	// set texture filtering parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	// load image, create texture
-	int width, height, nrChannels;
-	unsigned char *data = stbi_load(path, &width, &height, &nrChannels, 0);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	stbi_image_free(data);
-}
-
 void createImGuiWindow()
 {
 	static float f = 0.0f;
 	static int counter = 0;
 
-	ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+	ImGui::Begin("Performance:");
 
-	/*ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-	ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-	ImGui::Checkbox("Another Window", &show_another_window);
-
-	ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-	ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-	if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-		counter++;
-	ImGui::SameLine();*/
 	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-	ImGui::Text("Score = %d", scorePositive - scoreNegative);
 
-	if (scorePositive + scoreNegative == nrBoids) {
-		ImGui::Text("Game over!");
-	}
 	ImGui::End();
 }
 
@@ -407,7 +185,7 @@ void resetCamera() {
 	pitch = 0.0f;
 }
 
-int main()
+int initGLFW()
 {
 	// glfw: initialize and configure
 	glfwInit();
@@ -416,8 +194,8 @@ int main()
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Needed for OS X, and possibly Linux
 
-	// glfw: window creation
-	GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", glfwGetPrimaryMonitor(), NULL);
+														 // glfw: window creation
+	window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", NULL, NULL);
 	if (window == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
@@ -426,9 +204,9 @@ int main()
 	}
 	glfwMakeContextCurrent(window);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-	
+
 	// GLFW catches the cursor
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	//glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	// glad: load all OpenGL function pointers
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -436,114 +214,14 @@ int main()
 		std::cout << "Failed to initialize GLAD" << std::endl;
 		return -1;
 	}
+}
 
-	// load background (cubemap)
-	std::vector<std::string> faces
-	{
-		    "skybox/right.jpg",
-			"skybox/left.jpg",
-			"skybox/top.jpg",
-			"skybox/bottom.jpg",
-			"skybox/front.jpg",
-			"skybox/back.jpg"
-	};
-	unsigned int cubemapTexture = loadCubemap(faces);
-
-	float skyboxVertices[] = {
-		// positions          
-		-1.0f,  1.0f, -1.0f,
-		-1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f,
-		1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-
-		-1.0f, -1.0f,  1.0f,
-		-1.0f, -1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f,  1.0f,
-		-1.0f, -1.0f,  1.0f,
-
-		1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f,
-
-		-1.0f, -1.0f,  1.0f,
-		-1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f, -1.0f,  1.0f,
-		-1.0f, -1.0f,  1.0f,
-
-		-1.0f,  1.0f, -1.0f,
-		1.0f,  1.0f, -1.0f,
-		1.0f,  1.0f,  1.0f,
-		1.0f,  1.0f,  1.0f,
-		-1.0f,  1.0f,  1.0f,
-		-1.0f,  1.0f, -1.0f,
-
-		-1.0f, -1.0f, -1.0f,
-		-1.0f, -1.0f,  1.0f,
-		1.0f, -1.0f, -1.0f,
-		1.0f, -1.0f, -1.0f,
-		-1.0f, -1.0f,  1.0f,
-		1.0f, -1.0f,  1.0f
-	};
-
-	float obstacleVertices[] = {
-	-0.5f, -0.5f, -0.5f, 
-	 0.5f, -0.5f, -0.5f,
-	 0.5f,  0.5f, -0.5f, 
-	 0.5f,  0.5f, -0.5f, 
-	-0.5f,  0.5f, -0.5f,  
-	-0.5f, -0.5f, -0.5f,
-
-	-0.5f, -0.5f,  0.5f, 
-	 0.5f, -0.5f,  0.5f, 
-	 0.5f,  0.5f,  0.5f, 
-	 0.5f,  0.5f,  0.5f, 
-	-0.5f,  0.5f,  0.5f, 
-	-0.5f, -0.5f,  0.5f, 
-
-	-0.5f,  0.5f,  0.5f, 
-	-0.5f,  0.5f, -0.5f, 
-	-0.5f, -0.5f, -0.5f, 
-	-0.5f, -0.5f, -0.5f,  
-	-0.5f, -0.5f,  0.5f, 
-	-0.5f,  0.5f,  0.5f, 
-
-	 0.5f,  0.5f,  0.5f, 
-	 0.5f,  0.5f, -0.5f,  
-	 0.5f, -0.5f, -0.5f, 
-	 0.5f, -0.5f, -0.5f, 
-	 0.5f, -0.5f,  0.5f, 
-	 0.5f,  0.5f,  0.5f, 
-
-	-0.5f, -0.5f, -0.5f,  
-	 0.5f, -0.5f, -0.5f,  
-	 0.5f, -0.5f,  0.5f,  
-	 0.5f, -0.5f,  0.5f, 
-	-0.5f, -0.5f,  0.5f, 
-	-0.5f, -0.5f, -0.5f,  
-
-	-0.5f,  0.5f, -0.5f,  
-	 0.5f,  0.5f, -0.5f,  
-	 0.5f,  0.5f,  0.5f,  
-	 0.5f,  0.5f,  0.5f, 
-	-0.5f,  0.5f,  0.5f, 
-	-0.5f,  0.5f, -0.5f, 
-	};
-
-
+int main()
+{
+	initGLFW();
 	//Initialise boids, walls, objects
 	createLevel(nrBoids);
-
 	
-
 	// boid vertices
 	glm::vec3 p0(-1.0f, -1.0f, 0.0f);
 	glm::vec3 p1(0.0f, 1.5f, sqrt(3)/3);
@@ -553,29 +231,9 @@ int main()
 	// generate things
 	glGenVertexArrays(1, &VAO);
 	glGenBuffers(1, &VBO);
-	glGenBuffers(1, &EBO);
-	glGenTextures(1, &tex1);
-
-	// setup skybox VAO and VBO data
-	unsigned int skyboxVAO, skyboxVBO;
-	glGenVertexArrays(1, &skyboxVAO);
-	glGenBuffers(1, &skyboxVBO);
-	glBindVertexArray(skyboxVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 		
 	// Build and compile shaders
 	Shader shader("simple.vert", "simple.frag");
-	Shader basicShader("basic.vert", "simple.frag");
-	Shader skybox("cube.vert", "cube.frag");
-	Shader laserShader("gui.vert", "simple.frag");
-	Shader guiShader("gui.vert", "gui.frag");
-
-	// Create textures
-	createTexture(tex1, "rifle.png");
-	createTexture(tex2, "crosshair.png");
 
 	// use (bind) the shader 1 so that we can attach matrices
 	shader.use();
@@ -586,13 +244,6 @@ int main()
 	projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 1000.0f);
 	// set projection matrix as uniform (attach to bound shader)
 	shader.setMatrix("projection", projection);
-
-	// skybox (background) uses the same projection matrix
-	skybox.use();
-	skybox.setMatrix("projection", projection);
-
-	basicShader.use();
-	basicShader.setMatrix("projection", projection);
 
 	// instantiate array for boids
 	glm::vec3 renderBoids[nrBoids*24]; // Each boid has three points and RGB color
@@ -661,7 +312,7 @@ int main()
 			float angle = acos(boids[i].velocity.y / glm::length(boids[i].velocity));
 			model = glm::rotate(model, angle, v);
 
-			glm::vec3 color = glm::vec3(1.0f) * (float)!boids[i].isPredator + glm::vec3(3.0f) * (float)!boids[i].isAlive;
+			glm::vec3 color = glm::vec3(1.0f) * (float)!boids[i].isPredator;
 			// transform each vertex and add them to array
 			renderBoids[i * 24 + 0] = view * model * glm::vec4(p0, 1.0f);
 			renderBoids[i * 24 + 1] = color;
@@ -694,40 +345,6 @@ int main()
 
 		clearHashTable();
 
-		// draw skybox
-		glDepthFunc(GL_LEQUAL);
-		skybox.use();
-		skybox.setMatrix("view", glm::mat4(glm::mat3(view)));
-		// ... set view and projection matrix
-		glBindVertexArray(skyboxVAO);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
-		glDepthFunc(GL_LESS); // set depth function back to default
-
-		// Trying to draw obstacles the most simple way
-		basicShader.use();
-		basicShader.setMatrix("view", view);
-
-		// bind obstacle vertices to vao/vbo
-		glBindVertexArray(VAO);
-		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(obstacleVertices), &obstacleVertices, GL_STATIC_DRAW);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-		glEnableVertexAttribArray(0);
-
-		// for every obstacle, draw it
-		for (ObstaclePoint o : points) {
-			// create model matrix from agent position
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::scale(glm::translate(model, o.position), glm::vec3(10.0f));
-
-			basicShader.setMatrix("model", model);
-
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			glDrawArrays(GL_TRIANGLES, 0, 36);
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		}
-
 		// draw boids
 		shader.use();
 		glBindVertexArray(VAO);
@@ -748,16 +365,6 @@ int main()
 		// unbind buffer and vertex array
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
-
-
-		if (isLaserActive) {
-			laserShader.use();
-			renderLaser();
-		}
-
-		guiShader.use();
-		renderWeapon();
-		renderCrosshair();
 
 		// ImGui create/render window
 		createImGuiWindow();
