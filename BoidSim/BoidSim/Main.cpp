@@ -23,7 +23,7 @@ double xpos, ypos; // cursor position
 GLFWwindow* window;
 
 bool cameraReset = true; 
-const int nrBoids = 100000;
+const int nrBoids = 10000;
 const unsigned int screenWidth = 1280, screenHeight = 720;
 glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
@@ -48,8 +48,9 @@ glm::vec3 getSteeringPredator(Boid & b) {
 	std::vector<Boid> prey;
 	std::vector<Boid> predators;
 
-	for (Boid* n : nb) {
-		Boid neighbour = *n;
+	for (Boid n : boids) {
+		Boid neighbour = n;
+		if (b.position == neighbour.position || distance(b.position, neighbour.position) < 15.0f) continue;
 		if (neighbour.isAlive) {
 			if (neighbour.isPredator) {
 				predators.push_back(neighbour);
@@ -106,8 +107,9 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	std::vector<Boid> prey;
 	std::vector<Boid> predators;
 
-	for (Boid* n : nb) {
-		Boid neighbour = *n;
+	for (Boid n : boids) {
+		Boid neighbour = n;
+		if (b.position == neighbour.position || distance(b.position, neighbour.position) < 15.0f) continue;
 		if (neighbour.isAlive) {
 			if (neighbour.isPredator) {
 				predators.push_back(neighbour);
@@ -284,10 +286,11 @@ int main()
 		}
 
 		// Put all boids in the hash table so we can use it in the next loop
+		/*
 		for (Boid& b : boids){
 			putInHashTable(b);
 		}
-
+		*/
 		for (int i = 0; i < nrBoids; i++)
 		{
 			// Calculate new velocities for each boid, update pos given velocity
@@ -342,7 +345,7 @@ int main()
 			renderBoids[i * 24 + 23] = color;
 		}
 
-		clearHashTable();
+		//clearHashTable();
 
 		// draw boids
 		shader.use();
