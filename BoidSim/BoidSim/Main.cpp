@@ -55,7 +55,7 @@ GLuint geometry_buffer, flock_update_program, flock_render_program;
 GLuint frame_index = 0;
 enum
 {
-	WORKGROUP_SIZE = 256,
+	WORKGROUP_SIZE = 512,
 	NUM_WORKGROUPS = 256,
 	FLOCK_SIZE = (NUM_WORKGROUPS * WORKGROUP_SIZE)
 };
@@ -88,6 +88,9 @@ struct flock_member
 	glm::vec3 velocity;
 	unsigned int : 32;
 };
+
+float beforeUpdate, timeElapsedUpdate;
+float beforeRender, timeElapsedRender;
 
 
 
@@ -219,7 +222,7 @@ int initGLFW()
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
 	// GLFW catches the cursor
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	//glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	// glad: load all OpenGL function pointers
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -236,6 +239,9 @@ void createImGuiWindow()
 
 	ImGui::Begin("Performance");                          // Create a window called "Hello, world!" and append into it.
 
+
+	ImGui::Text("Time elapsed %.3f for updating", timeElapsedUpdate);
+	ImGui::Text("Time elapsed %.3f for rendering", timeElapsedRender);
 	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 	ImGui::End();
 }
@@ -247,7 +253,6 @@ int main()
 	// Compute shader
 	Shader flock_update_program("flocking.comp");
 	Shader flock_render_program("render.vert", "render.frag");
-
 
 	//Initialise boids, walls, objects
 	//boids = getLevelBoids(level, nrBoids);
@@ -281,6 +286,7 @@ int main()
 
 	while (!glfwWindowShouldClose(window))
 	{
+		beforeUpdate = glfwGetTime();
 		t++;
 		// Need to choose shader since we now have 2
 		flock_update_program.use();
@@ -310,6 +316,9 @@ int main()
 		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		timeElapsedUpdate = glfwGetTime() - beforeUpdate;
+		beforeRender = glfwGetTime();
+
 		flock_render_program.use();
 		glm::mat4 mvp = projection * view;
 
@@ -317,6 +326,8 @@ int main()
 		glBindVertexArray(flock_render_vao[frame_index]);
 		glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 8, FLOCK_SIZE);
 		frame_index ^= 1;
+
+		timeElapsedRender = glfwGetTime() - beforeRender;
 
 
 		// ImGui create/render window
