@@ -23,7 +23,7 @@ double xpos, ypos; // cursor position
 GLFWwindow* window;
 
 bool cameraReset = true; 
-const int nrBoids = 10000;
+const int nrBoids = 1000;
 const unsigned int screenWidth = 1280, screenHeight = 720;
 glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
@@ -31,7 +31,9 @@ double yaw = 1.6f, pitch = 1.0f;
 unsigned int VAO, VBO;
 int frame = 0;
 float fps;
-float avgFps = 0;
+double timeElapsed;
+double b4;
+double avgTimeElapsed;
 
 glm::vec3 getSteeringPredator(Boid & b) {
 	if (!b.isAlive) {
@@ -48,8 +50,8 @@ glm::vec3 getSteeringPredator(Boid & b) {
 	std::vector<Boid> prey;
 	std::vector<Boid> predators;
 
-	for (Boid n : boids) {
-		Boid neighbour = n;
+	for (Boid *n : nb) {
+		Boid neighbour = *n;
 		if (b.position == neighbour.position || distance(b.position, neighbour.position) < 15.0f) continue;
 		if (neighbour.isAlive) {
 			if (neighbour.isPredator) {
@@ -107,8 +109,8 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	std::vector<Boid> prey;
 	std::vector<Boid> predators;
 
-	for (Boid n : boids) {
-		Boid neighbour = n;
+	for (Boid *n : nb) {
+		Boid neighbour = *n;
 		if (b.position == neighbour.position || distance(b.position, neighbour.position) < 15.0f) continue;
 		if (neighbour.isAlive) {
 			if (neighbour.isPredator) {
@@ -170,7 +172,7 @@ void createImGuiWindow()
 
 	ImGui::Begin("Performance:");
 
-	ImGui::Text("Application average %.3f ms/frame (%.1f FPS), avgFps: %.1f", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate, avgFps);
+	ImGui::Text("Application average %.3f ms/frame (%.1f FPS), timeElapsed: %f", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate, avgTimeElapsed);
 
 	ImGui::End();
 }
@@ -257,9 +259,8 @@ int main()
 	// -----------
 	while (!glfwWindowShouldClose(window))
 	{
-		fps += ImGui::GetIO().Framerate;
+		b4 = glfwGetTime();
 		frame++;
-		if (frame % 100 == 0) avgFps = fps / frame; frame = 0;
 		// Need to choose shader since we now have 2
 		shader.use();
 		// if got input, processed here
@@ -286,11 +287,11 @@ int main()
 		}
 
 		// Put all boids in the hash table so we can use it in the next loop
-		/*
+		
 		for (Boid& b : boids){
 			putInHashTable(b);
 		}
-		*/
+		
 		for (int i = 0; i < nrBoids; i++)
 		{
 			// Calculate new velocities for each boid, update pos given velocity
@@ -345,7 +346,7 @@ int main()
 			renderBoids[i * 24 + 23] = color;
 		}
 
-		//clearHashTable();
+		clearHashTable();
 
 		// draw boids
 		shader.use();
@@ -376,6 +377,8 @@ int main()
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
 		glfwPollEvents();
+		timeElapsed += glfwGetTime() - b4;
+		if (frame % 100 == 0) avgTimeElapsed = timeElapsed / frame;
 	}
 
 	// optional: de-allocate all resources once they've outlived their purpose:
