@@ -55,8 +55,8 @@ GLuint geometry_buffer, flock_update_program, flock_render_program;
 GLuint frame_index = 0;
 enum
 {
-	WORKGROUP_SIZE = 512,
-	NUM_WORKGROUPS = 256,
+	WORKGROUP_SIZE = 256,
+	NUM_WORKGROUPS = 4,
 	FLOCK_SIZE = (NUM_WORKGROUPS * WORKGROUP_SIZE)
 };
 static const glm::vec3 geometry[] =
@@ -89,8 +89,8 @@ struct flock_member
 	unsigned int : 32;
 };
 
-float beforeUpdate, timeElapsedUpdate;
-float beforeRender, timeElapsedRender;
+float b4, timeElapsed, avgElapsed;
+GLuint64 time;
 
 
 
@@ -240,8 +240,7 @@ void createImGuiWindow()
 	ImGui::Begin("Performance");                          // Create a window called "Hello, world!" and append into it.
 
 
-	ImGui::Text("Time elapsed %.3f for updating", timeElapsedUpdate);
-	ImGui::Text("Time elapsed %.3f for rendering", timeElapsedRender);
+	ImGui::Text("Time elapsed %f for updating", avgElapsed * 1000);
 	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 	ImGui::End();
 }
@@ -263,8 +262,8 @@ int main()
 
 	for (int i = 0; i < FLOCK_SIZE; i++)
 	{
-		ptr[i].position = glm::vec3(rand() % 161 - 80, rand() % 161 - 80, rand() % 81 - 40);
-		ptr[i].velocity = glm::vec3(rand() % 161 - 80, rand() % 161 - 80, rand() % 81 - 40);
+		ptr[i].position = glm::vec3(rand() % 500 - 250, rand() % 500 - 250, rand() % 500 - 250);
+		ptr[i].velocity = glm::vec3(rand() % 500 - 250, rand() % 500 - 250, rand() % 500 - 250);
 	}
 
 
@@ -276,7 +275,12 @@ int main()
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
 	// render loop
-	float t = 0;
+	int t = 0;
+	GLuint64 timer, timer2;
+	GLint64 timer1;
+	unsigned int query;
+	int done = 0;
+	glGenQueries(1, &query);
 
 	// Dear ImGui setup
 	ImGui::CreateContext();
@@ -286,7 +290,11 @@ int main()
 
 	while (!glfwWindowShouldClose(window))
 	{
-		beforeUpdate = glfwGetTime();
+		glQueryCounter(query, GL_TIMESTAMP);
+
+		// get the current time
+		glGetInteger64v(GL_TIMESTAMP, &timer1);
+
 		t++;
 		// Need to choose shader since we now have 2
 		flock_update_program.use();
@@ -316,8 +324,7 @@ int main()
 		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		timeElapsedUpdate = glfwGetTime() - beforeUpdate;
-		beforeRender = glfwGetTime();
+		timeElapsed = glfwGetTime() - b4;
 
 		flock_render_program.use();
 		glm::mat4 mvp = projection * view;
@@ -327,8 +334,9 @@ int main()
 		glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 8, FLOCK_SIZE);
 		frame_index ^= 1;
 
-		timeElapsedRender = glfwGetTime() - beforeRender;
-
+		glEndQuery(GL_TIME_ELAPSED);
+		glGetQueryObjectui64v(query, GL_QUERY_RESULT, &timer2);
+		timeElapsed += (timer2 - timer1) / 1000000.0;
 
 		// ImGui create/render window
 		createImGuiWindow();
@@ -338,6 +346,7 @@ int main()
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
 		glfwPollEvents();
+		if (t % 100 == 0) avgElapsed = timeElapsed / t;
 	}
 
 	// terminate, clearing all previously allocated GLFW/ImGui resources.
