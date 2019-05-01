@@ -44,7 +44,7 @@ bool levelCreated = false;
 
 void createLevel(int nrBoids) {
 	//Default values
-	int spawnAreaSize = 100;
+	int spawnAreaSize = 500;
 	int spawnAreaSizePredator = 100;
 	glm::vec3 spawnAreaOffset = glm::vec3(0.0);
 	glm::vec3 spawnAreaOffsetPredator = glm::vec3(0.0);

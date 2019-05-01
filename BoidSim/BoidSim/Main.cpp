@@ -16,6 +16,9 @@
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
 
+#include "tbb/parallel_for.h"
+#include "tbb/task_scheduler_init.h"
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 double xpos, ypos; // cursor position
@@ -23,7 +26,7 @@ double xpos, ypos; // cursor position
 GLFWwindow* window;
 
 bool cameraReset = true; 
-const int nrBoids = 1000;
+const int nrBoids = 100000;
 const unsigned int screenWidth = 1280, screenHeight = 720;
 glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
@@ -43,8 +46,6 @@ glm::vec3 getSteeringPredator(Boid & b) {
 	glm::vec3 alignment = glm::vec3(0.0);
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
-	glm::vec3 planeforce = glm::vec3(0.0);
-	glm::vec3 lineforce = glm::vec3(0.0);
 	glm::vec3 hunt = glm::vec3(0.0);
 	std::vector<Boid*> nb = getNeighbours(b);
 	std::vector<Boid> prey;
@@ -87,12 +88,11 @@ glm::vec3 getSteeringPredator(Boid & b) {
 	}
 
 
-	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 10.0f*planeforce + 50.0f*hunt + lineforce;
+	glm::vec3 steering = alignment + cohesion + 2.0f*separation + 50.0f*hunt;
 	if (!is3D) { steering = glm::vec3(steering.x, steering.y, 0); }
 
 	// Limit acceleration
-	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION_PREDATOR);
-	return magnitude * glm::normalize(steering);
+	return glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION_PREDATOR) * glm::normalize(steering);
 }
 
 glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
@@ -100,9 +100,7 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	glm::vec3 alignment = glm::vec3(0.0);
 	glm::vec3 separation = glm::vec3(0.0);
 	glm::vec3 cohesion = glm::vec3(0.0);
-	glm::vec3 lineforce = glm::vec3(0.0);
 	glm::vec3 planeforce = glm::vec3(0.0);
-	glm::vec3 pointforce = glm::vec3(0.0);
 	glm::vec3 flee = glm::vec3(0.0);
 
 	std::vector<Boid*> nb = getNeighbours(b);
@@ -156,12 +154,11 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 		flee = - normalize(flee * (1.0f / std::size(predators)) - b.position - b.velocity);
 	}
 	
-	glm::vec3 steering = alignment + cohesion + 1.5f*separation + 10.0f*planeforce + 10.0f*pointforce + lineforce + flee;
+	glm::vec3 steering = alignment + cohesion + 1.5f*separation + 10.0f*planeforce + flee;
 	if (!is3D) { steering = glm::vec3(steering.x, steering.y, 0); }
 
 	// Limit acceleration
-	float magnitude = glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION); 
-	return magnitude*glm::normalize(steering);
+	return glm::clamp(glm::length(steering), 0.0f, MAX_ACCELERATION)*glm::normalize(steering);
 
 }
 
@@ -259,6 +256,8 @@ int main()
 	// -----------
 	while (!glfwWindowShouldClose(window))
 	{
+
+
 		b4 = glfwGetTime();
 		frame++;
 		// Need to choose shader since we now have 2
@@ -292,62 +291,62 @@ int main()
 			putInHashTable(b);
 		}
 		
-		for (int i = 0; i < nrBoids; i++)
-		{
-			// Calculate new velocities for each boid, update pos given velocity
-			if (boids[i].isPredator) {
-				boids[i].velocity += getSteeringPredator(boids.at(i));
-				boids[i].velocity = normalize(boids[i].velocity) * MAX_SPEED_PREDATOR;
+		
+		for(int i = 0; i < nrBoids; i++)
+			{
+				// Calculate new velocities for each boid, update pos given velocity
+				if (boids[i].isPredator) {
+					boids[i].velocity += getSteeringPredator(boids.at(i));
+					boids[i].velocity = normalize(boids[i].velocity) * MAX_SPEED_PREDATOR;
+				}
+				else {
+					boids[i].velocity += getSteeringPrey(boids.at(i));
+					boids[i].velocity = normalize(boids[i].velocity) * MAX_SPEED;
+				}
+
+				boids[i].position += boids[i].velocity;
+
+
+				// create model matrix from agent position
+				glm::mat4 model = glm::mat4(1.0f);
+				model = glm::translate(model, boids[i].position);
+				if (boids[i].isPredator) model = glm::scale(model, glm::vec3(2.0f));
+				glm::vec3 v = glm::vec3(boids[i].velocity.z, 0, -boids[i].velocity.x);
+				float angle = acos(boids[i].velocity.y / glm::length(boids[i].velocity));
+				model = glm::rotate(model, angle, v);
+
+				glm::vec3 color = glm::vec3(1.0f) * (float)!boids[i].isPredator;
+				// transform each vertex and add them to array
+				renderBoids[i * 24 + 0] = view * model * glm::vec4(p0, 1.0f);
+				renderBoids[i * 24 + 1] = color;
+				renderBoids[i * 24 + 2] = view * model * glm::vec4(p1, 1.0f);
+				renderBoids[i * 24 + 3] = color;
+				renderBoids[i * 24 + 4] = view * model * glm::vec4(p2, 1.0f);
+				renderBoids[i * 24 + 5] = color;
+
+				renderBoids[i * 24 + 6] = view * model * glm::vec4(p0, 1.0f);
+				renderBoids[i * 24 + 7] = color;
+				renderBoids[i * 24 + 8] = view * model * glm::vec4(p3, 1.0f);
+				renderBoids[i * 24 + 9] = color;
+				renderBoids[i * 24 + 10] = view * model * glm::vec4(p1, 1.0f);
+				renderBoids[i * 24 + 11] = color;
+
+				renderBoids[i * 24 + 12] = view * model * glm::vec4(p1, 1.0f);
+				renderBoids[i * 24 + 13] = color;
+				renderBoids[i * 24 + 14] = view * model * glm::vec4(p3, 1.0f);
+				renderBoids[i * 24 + 15] = color;
+				renderBoids[i * 24 + 16] = view * model * glm::vec4(p2, 1.0f);
+				renderBoids[i * 24 + 17] = color;
+
+				renderBoids[i * 24 + 18] = view * model * glm::vec4(p0, 1.0f);
+				renderBoids[i * 24 + 19] = color;
+				renderBoids[i * 24 + 20] = view * model * glm::vec4(p2, 1.0f);
+				renderBoids[i * 24 + 21] = color;
+				renderBoids[i * 24 + 22] = view * model * glm::vec4(p3, 1.0f);
+				renderBoids[i * 24 + 23] = color;
 			}
-			else {
-				boids[i].velocity += getSteeringPrey(boids.at(i));
-				boids[i].velocity = normalize(boids[i].velocity) * MAX_SPEED;
-			}
-
-			boids[i].position += boids[i].velocity;
-
-
-			// create model matrix from agent position
-			glm::mat4 model = glm::mat4(1.0f);
-			model = glm::translate(model, boids[i].position);
-			if (boids[i].isPredator) model = glm::scale(model, glm::vec3(2.0f));
-			glm::vec3 v = glm::vec3(boids[i].velocity.z, 0, -boids[i].velocity.x);
-			float angle = acos(boids[i].velocity.y / glm::length(boids[i].velocity));
-			model = glm::rotate(model, angle, v);
-
-			glm::vec3 color = glm::vec3(1.0f) * (float)!boids[i].isPredator;
-			// transform each vertex and add them to array
-			renderBoids[i * 24 + 0] = view * model * glm::vec4(p0, 1.0f);
-			renderBoids[i * 24 + 1] = color;
-			renderBoids[i * 24 + 2] = view * model * glm::vec4(p1, 1.0f);
-			renderBoids[i * 24 + 3] = color;
-			renderBoids[i * 24 + 4] = view * model * glm::vec4(p2, 1.0f);
-			renderBoids[i * 24 + 5] = color;
-
-			renderBoids[i * 24 + 6] = view * model * glm::vec4(p0, 1.0f);
-			renderBoids[i * 24 + 7] = color;
-			renderBoids[i * 24 + 8] = view * model * glm::vec4(p3, 1.0f);
-			renderBoids[i * 24 + 9] = color;
-			renderBoids[i * 24 + 10] = view * model * glm::vec4(p1, 1.0f);
-			renderBoids[i * 24 + 11] = color;
-
-			renderBoids[i * 24 + 12] = view * model * glm::vec4(p1, 1.0f);
-			renderBoids[i * 24 + 13] = color;
-			renderBoids[i * 24 + 14] = view * model * glm::vec4(p3, 1.0f);
-			renderBoids[i * 24 + 15] = color;
-			renderBoids[i * 24 + 16] = view * model * glm::vec4(p2, 1.0f);
-			renderBoids[i * 24 + 17] = color;
-
-			renderBoids[i * 24 + 18] = view * model * glm::vec4(p0, 1.0f);
-			renderBoids[i * 24 + 19] = color;
-			renderBoids[i * 24 + 20] = view * model * glm::vec4(p2, 1.0f);
-			renderBoids[i * 24 + 21] = color;
-			renderBoids[i * 24 + 22] = view * model * glm::vec4(p3, 1.0f);
-			renderBoids[i * 24 + 23] = color;
-		}
 
 		clearHashTable();
-
 		// draw boids
 		shader.use();
 		glBindVertexArray(VAO);
@@ -378,7 +377,7 @@ int main()
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 		timeElapsed += glfwGetTime() - b4;
-		if (frame % 100 == 0) avgTimeElapsed = timeElapsed / frame;
+		if (frame % 10 == 0) avgTimeElapsed = timeElapsed / frame;
 	}
 
 	// optional: de-allocate all resources once they've outlived their purpose:
