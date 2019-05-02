@@ -56,7 +56,7 @@ GLuint frame_index = 0;
 enum
 {
 	WORKGROUP_SIZE = 256,
-	NUM_WORKGROUPS = 4,
+	NUM_WORKGROUPS = 4000,
 	FLOCK_SIZE = (NUM_WORKGROUPS * WORKGROUP_SIZE)
 };
 static const glm::vec3 geometry[] =
@@ -240,7 +240,7 @@ void createImGuiWindow()
 	ImGui::Begin("Performance");                          // Create a window called "Hello, world!" and append into it.
 
 
-	ImGui::Text("Time elapsed %f for updating", avgElapsed * 1000);
+	ImGui::Text("Time elapsed %f for updating", avgElapsed);
 	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 	ImGui::End();
 }
@@ -346,7 +346,7 @@ int main()
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
 		glfwPollEvents();
-		if (t % 100 == 0) avgElapsed = timeElapsed / t;
+		if (t % 2 == 0) avgElapsed = timeElapsed / t;
 	}
 
 	// terminate, clearing all previously allocated GLFW/ImGui resources.
