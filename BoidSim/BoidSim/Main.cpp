@@ -30,6 +30,10 @@ const int nrBoids = 1000;
 const unsigned int screenWidth = 1280, screenHeight = 720;
 glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
+// lighting
+glm::vec3 lightPos(1.0f, 100.0f, -100.0f);
+glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
+
 double yaw = 1.6f, pitch = 1.0f;
 unsigned int VAO, VBO;
 double timeElapsed, b4, avgTimeElapsed, fps; // benchmarking stuff
@@ -150,6 +154,8 @@ int main()
 	projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 1000.0f);
 	// set projection matrix as uniform (attach to bound shader)
 	shader.setMatrix("projection", projection);
+	shader.setVec3("lightColor", lightColor);
+	shader.setVec3("lightPos", lightPos);
 
 	// instantiate array for boids
 	glm::vec3 renderBoids[nrBoids*24]; // Each boid has three points and RGB color
@@ -219,23 +225,45 @@ int main()
 				glm::vec3 v = glm::vec3(b.velocity.z, 0, -b.velocity.x);
 				float angle = acos(b.velocity.y / glm::length(b.velocity));
 				model = glm::rotate(model, angle, v);
+				// calculate transformed points of pyramid
+				glm::vec3 v0 = view * model * glm::vec4(p0, 1.0f);
+				glm::vec3 v1 = view * model * glm::vec4(p1, 1.0f);
+				glm::vec3 v2 = view * model * glm::vec4(p2, 1.0f);
+				glm::vec3 v3 = view * model * glm::vec4(p3, 1.0f);
+				// calculate normals for each triangle
+				glm::vec3 n0 = glm::cross(v2 - v0, v1 - v0);
+				glm::vec3 n1 = glm::cross(v0 - v3, v1 - v3);
+				glm::vec3 n2 = glm::cross(v3 - v2, v1 - v2);
+				glm::vec3 n3 = glm::cross(v3 - v0, v2 - v0);
 
 				// transform each vertex and add them to array
-				renderBoids[i * 12 + 0] = view * model * glm::vec4(p0, 1.0f);
-				renderBoids[i * 12 + 1] = view * model * glm::vec4(p1, 1.0f);
-				renderBoids[i * 12 + 2] = view * model * glm::vec4(p2, 1.0f);
+				renderBoids[i * 24 + 0] = v0;
+				renderBoids[i * 24 + 1] = n0;
+				renderBoids[i * 24 + 2] = v1;
+				renderBoids[i * 24 + 3] = n0;
+				renderBoids[i * 24 + 4] = v2;
+				renderBoids[i * 24 + 5] = n0;
 
-				renderBoids[i * 12 + 3] = view * model * glm::vec4(p0, 1.0f);
-				renderBoids[i * 12 + 4] = view * model * glm::vec4(p3, 1.0f);
-				renderBoids[i * 12 + 5] = view * model * glm::vec4(p1, 1.0f);
+				renderBoids[i * 24 + 6] = v0;
+				renderBoids[i * 24 + 7] = n1;
+				renderBoids[i * 24 + 8] = v3;
+				renderBoids[i * 24 + 9] = n1;
+				renderBoids[i * 24 + 10] = v1;
+				renderBoids[i * 24 + 11] = n1;
 
-				renderBoids[i * 12 + 6] = view * model * glm::vec4(p1, 1.0f);
-				renderBoids[i * 12 + 7] = view * model * glm::vec4(p3, 1.0f);
-				renderBoids[i * 12 + 8] = view * model * glm::vec4(p2, 1.0f);
+				renderBoids[i * 24 + 12] = v1;
+				renderBoids[i * 24 + 13] = n2;
+				renderBoids[i * 24 + 14] = v3;
+				renderBoids[i * 24 + 15] = n2;
+				renderBoids[i * 24 + 16] = v2;
+				renderBoids[i * 24 + 17] = n2;
 
-				renderBoids[i * 12 + 9] = view * model * glm::vec4(p0, 1.0f);
-				renderBoids[i * 12 + 10] = view * model * glm::vec4(p2, 1.0f);
-				renderBoids[i * 12 + 11] = view * model * glm::vec4(p3, 1.0f);
+				renderBoids[i * 24 + 18] = v0;
+				renderBoids[i * 24 + 19] = n3;
+				renderBoids[i * 24 + 20] = v2;
+				renderBoids[i * 24 + 21] = n3;
+				renderBoids[i * 24 + 22] = v3;
+				renderBoids[i * 24 + 23] = n3;
 			}
 		});
 
@@ -245,12 +273,15 @@ int main()
 		glBindVertexArray(VAO);
 		// bind buffer object and boid array
 		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 12, &renderBoids[0], GL_STATIC_DRAW);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 24, &renderBoids[0], GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
 		glEnableVertexAttribArray(0);
 
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+		glEnableVertexAttribArray(1);
+
 		// Draw 3 * nrBoids vertices
-		shader.setVec3("color", glm::vec3(1.0f));
+		shader.setVec3("color", glm::vec3(0.5f, 1.0f, 1.0f));
 		glDrawArrays(GL_TRIANGLES, 0, nrBoids * 12);
 	
 		shader.setVec3("color", glm::vec3(0.0f));
