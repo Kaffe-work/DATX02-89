@@ -26,7 +26,7 @@ double xpos, ypos; // cursor position
 GLFWwindow* window;
 
 bool cameraReset = true; 
-const int nrBoids = 10000;
+const int nrBoids = 1000;
 const unsigned int screenWidth = 1280, screenHeight = 720;
 glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
@@ -220,35 +220,22 @@ int main()
 				float angle = acos(b.velocity.y / glm::length(b.velocity));
 				model = glm::rotate(model, angle, v);
 
-				glm::vec3 color = glm::vec3(1.0f);
 				// transform each vertex and add them to array
-				renderBoids[i * 24 + 0] = view * model * glm::vec4(p0, 1.0f);
-				renderBoids[i * 24 + 1] = color;
-				renderBoids[i * 24 + 2] = view * model * glm::vec4(p1, 1.0f);
-				renderBoids[i * 24 + 3] = color;
-				renderBoids[i * 24 + 4] = view * model * glm::vec4(p2, 1.0f);
-				renderBoids[i * 24 + 5] = color;
+				renderBoids[i * 12 + 0] = view * model * glm::vec4(p0, 1.0f);
+				renderBoids[i * 12 + 1] = view * model * glm::vec4(p1, 1.0f);
+				renderBoids[i * 12 + 2] = view * model * glm::vec4(p2, 1.0f);
 
-				renderBoids[i * 24 + 6] = view * model * glm::vec4(p0, 1.0f);
-				renderBoids[i * 24 + 7] = color;
-				renderBoids[i * 24 + 8] = view * model * glm::vec4(p3, 1.0f);
-				renderBoids[i * 24 + 9] = color;
-				renderBoids[i * 24 + 10] = view * model * glm::vec4(p1, 1.0f);
-				renderBoids[i * 24 + 11] = color;
+				renderBoids[i * 12 + 3] = view * model * glm::vec4(p0, 1.0f);
+				renderBoids[i * 12 + 4] = view * model * glm::vec4(p3, 1.0f);
+				renderBoids[i * 12 + 5] = view * model * glm::vec4(p1, 1.0f);
 
-				renderBoids[i * 24 + 12] = view * model * glm::vec4(p1, 1.0f);
-				renderBoids[i * 24 + 13] = color;
-				renderBoids[i * 24 + 14] = view * model * glm::vec4(p3, 1.0f);
-				renderBoids[i * 24 + 15] = color;
-				renderBoids[i * 24 + 16] = view * model * glm::vec4(p2, 1.0f);
-				renderBoids[i * 24 + 17] = color;
+				renderBoids[i * 12 + 6] = view * model * glm::vec4(p1, 1.0f);
+				renderBoids[i * 12 + 7] = view * model * glm::vec4(p3, 1.0f);
+				renderBoids[i * 12 + 8] = view * model * glm::vec4(p2, 1.0f);
 
-				renderBoids[i * 24 + 18] = view * model * glm::vec4(p0, 1.0f);
-				renderBoids[i * 24 + 19] = color;
-				renderBoids[i * 24 + 20] = view * model * glm::vec4(p2, 1.0f);
-				renderBoids[i * 24 + 21] = color;
-				renderBoids[i * 24 + 22] = view * model * glm::vec4(p3, 1.0f);
-				renderBoids[i * 24 + 23] = color;
+				renderBoids[i * 12 + 9] = view * model * glm::vec4(p0, 1.0f);
+				renderBoids[i * 12 + 10] = view * model * glm::vec4(p2, 1.0f);
+				renderBoids[i * 12 + 11] = view * model * glm::vec4(p3, 1.0f);
 			}
 		});
 
@@ -258,14 +245,15 @@ int main()
 		glBindVertexArray(VAO);
 		// bind buffer object and boid array
 		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 24, &renderBoids[0], GL_STATIC_DRAW);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+		glBufferData(GL_ARRAY_BUFFER, nrBoids * sizeof(glm::vec3) * 12, &renderBoids[0], GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 		glEnableVertexAttribArray(0);
 
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-		glEnableVertexAttribArray(1);
-
 		// Draw 3 * nrBoids vertices
+		shader.setVec3("color", glm::vec3(1.0f));
+		glDrawArrays(GL_TRIANGLES, 0, nrBoids * 12);
+	
+		shader.setVec3("color", glm::vec3(0.0f));
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glDrawArrays(GL_TRIANGLES, 0, nrBoids * 12);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
