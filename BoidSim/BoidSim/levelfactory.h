@@ -8,7 +8,7 @@
 #include <vector>
 
 //Nr of predators
-unsigned int nrPredators = 10;
+unsigned int nrPredators = 0;
 
 // Which level
 int level = 0;

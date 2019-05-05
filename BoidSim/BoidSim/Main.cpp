@@ -26,7 +26,7 @@ double xpos, ypos; // cursor position
 GLFWwindow* window;
 
 bool cameraReset = true; 
-const int nrBoids = 100000;
+const int nrBoids = 10000;
 const unsigned int screenWidth = 1280, screenHeight = 720;
 glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
 glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
@@ -124,14 +124,12 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 	for (Boid n : prey) {
 		alignment += n.velocity;
 		cohesion += n.position;
-		separation += normalize(b.position - n.position) / distance(b.position, n.position);
+		separation += normalize(b.position - n.position) / sqrt(distance(b.position, n.position));
 	}
 
-	if (std::size(prey) > 0) {
-		alignment = normalize(alignment * (1.0f / std::size(prey)) - b.velocity);
-		cohesion = normalize(cohesion * (1.0f / std::size(prey)) - b.position - b.velocity);
-		separation = normalize(separation * (1.0f / std::size(prey)) - b.velocity);
-	}
+		alignment = normalize(alignment - b.velocity);
+		cohesion = normalize(cohesion - b.position);
+		separation = normalize(separation - b.velocity);
 
 	//Avoid planes
 	for (ObstaclePlane o : walls) {
@@ -154,7 +152,7 @@ glm::vec3 getSteeringPrey(Boid & b) { // Flocking rules are implemented here
 		flee = - normalize(flee * (1.0f / std::size(predators)) - b.position - b.velocity);
 	}
 	
-	glm::vec3 steering = alignment + cohesion + 1.5f*separation + 10.0f*planeforce + flee;
+	glm::vec3 steering = 30.0f*alignment + cohesion + 1.5f*separation + 10.0f*planeforce + flee;
 	if (!is3D) { steering = glm::vec3(steering.x, steering.y, 0); }
 
 	// Limit acceleration
@@ -292,7 +290,10 @@ int main()
 		}
 		
 		
-		for(int i = 0; i < nrBoids; i++)
+		tbb::parallel_for(
+			tbb::blocked_range<size_t>(0, nrBoids),
+			[&](const tbb::blocked_range<size_t>& r) {
+			for (size_t i = r.begin(); i < r.end(); ++i)
 			{
 				// Calculate new velocities for each boid, update pos given velocity
 				if (boids[i].isPredator) {
@@ -345,6 +346,7 @@ int main()
 				renderBoids[i * 24 + 22] = view * model * glm::vec4(p3, 1.0f);
 				renderBoids[i * 24 + 23] = color;
 			}
+		});
 
 		clearHashTable();
 		// draw boids
