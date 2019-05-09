@@ -4,6 +4,9 @@
 #include "glm/glm.hpp"
 #include <vector>
 
+#define PREDATOR_FLAG 1
+#define IS_ALIVE_FLAG 2
+
 #if defined(__CUDACC__) // NVCC
    #define MY_ALIGN(n) __align__(n)
 #elif defined(__GNUC__) // GCC
@@ -15,11 +18,13 @@
 #endif
 
 // TODO: Testa olika align värden, kan påverka enligt CUDA docs 9.2.1.2. A Sequential but Misaligned Access Pattern
-struct MY_ALIGN(8) Boid {
-	glm::vec3 position, velocity;
-
+struct MY_ALIGN(32) Boid {
+	glm::vec3 velocity, position;
+	char status;
 	Boid()
-		: position(rand() % 400 + 15, rand() % 400 + 15, rand() % 200 + 15), velocity(rand() % 10 + 15, rand() % 10 + 15, rand() % 10 + 15) { }
+		: position(rand() % (700-15) + 15, rand() % (700 - 15) + 15, rand() % (700 - 15) + 15),
+		  velocity(rand() % 30 - 15, rand() % 30 - 15, rand() % 30 - 15),
+		  status(2) { }
 };
 
 #endif

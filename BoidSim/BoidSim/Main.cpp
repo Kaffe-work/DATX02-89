@@ -10,10 +10,17 @@
 #include "boid.h"
 #include <algorithm>
 #include "kernel.h"
+#include <random>
+
+// Enable timing
+#define TIMING
+#define FRAMES_MEASURED 50
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 double xpos, ypos; // cursor position
+
+int nrPredators = 0;
 
 // setup
 const unsigned int screenWidth = 1280, screenHeight = 720;
@@ -26,10 +33,6 @@ double yaw = 1.6f, pitch = 0.0f;
 const int nrBoids = NR_BOIDS;
 Boid* boids;
 
-// Boid attributes
-const float MAX_SPEED = 0.3f;
-const float MAX_ACCELERATION = 0.05f;
-const float SOFTNESS = 5.0f;
 
 // Time, used to print performance
 double lastTime = glfwGetTime();
@@ -55,8 +58,14 @@ glm::vec3 getRandomVectorWithChance(int percentage) {
     return glm::vec3(maybe ? rand() % 121 - 60, rand() % 121 - 60, rand() % 21 - 10 : 0, 0, 0);
 }
 
+int frames = 0;
+
 int main()
 {
+
+	double updateTime = 0.;
+	double renderTime = 0.;
+
     boids = *(initBoidsOnGPU(boids));
     // glfw: initialize and configure
     glfwInit();
@@ -85,10 +94,29 @@ int main()
 
     // build and compile shader program
     Shader shader("vert.shader", "frag.shader");
+	long rando = 1;
 
-    // create the boids (allocate space and randomize position/velocity by calling constructor)
-    for (int i = 0; i < nrBoids; ++i)
-        boids[i] = Boid();
+
+	std::random_device rd;
+	std::uniform_int_distribution<long> dist(15., 685.);
+	std::uniform_int_distribution<long> dist2(-13., 13.);
+	//Create prey and predators
+	for (int i = 0; i < nrBoids; i++) {
+		srand(i);
+		boids[i] = Boid();
+		
+		boids[i].position.x = dist(rd);
+		boids[i].position.y = dist(rd);
+		boids[i].position.z = dist(rd);
+		boids[i].velocity.x = dist2(rd);
+		boids[i].velocity.y = dist2(rd);
+		boids[i].velocity.z = dist2(rd);
+		
+	}
+	for (int i = 0; i < nrPredators; i++) {
+		boids[i].status |= PREDATOR_FLAG;
+	}
+
 
     // one vector for each vertex
     glm::vec3 p1(-1.0f, -1.0f, 0.0f);
@@ -141,9 +169,16 @@ int main()
         glClearColor(0.90f, 0.95f, 0.96f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        int i = 0;
 
+		double lastTime = glfwGetTime();
         step(); // one step in the simulation on the gpu
+		updateTime += glfwGetTime()- lastTime;
+
+
+
+		lastTime = glfwGetTime();
+
+
 
         // Map buffer object so CUDA can access OpenGl buffer
         glm::vec3* renderBoids;
@@ -177,7 +212,13 @@ int main()
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         glfwSwapBuffers(window);
         glfwPollEvents();
+
+#ifdef TIMING
+		renderTime += glfwGetTime() - lastTime;
+		if (frames++ > FRAMES_MEASURED) break;
+#endif
     }
+
 
     cudaGraphicsUnregisterResourceWrapper(positionsVBO_CUDA);
     glDeleteBuffers(1, &positionsVBO);
@@ -185,6 +226,12 @@ int main()
     // glfw: terminate, clearing all previously allocated GLFW resources.
     glfwTerminate();
     deinitBoidsOnGPU();
+#ifdef TIMING
+	printf("Update time: %f\n", updateTime / (double)FRAMES_MEASURED);
+	printf("Render time: %f\n", renderTime / (double)FRAMES_MEASURED);
+	while (1) {}
+#endif
+	
     return 0;
 }
 
