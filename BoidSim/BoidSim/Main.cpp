@@ -209,64 +209,62 @@ int main()
 			putInHashTable(b);
 		}
 		
-		tbb::parallel_for(
-			tbb::blocked_range<size_t>(0, nrBoids),
-			[&](const tbb::blocked_range<size_t>& r) {
-			for (size_t i = r.begin(); i < r.end(); ++i)
-			{
-				// Calculate new velocities for each boid, update pos given velocity
-				Boid& b = boids[i];
-				b.velocity += getSteering(b);
-				b.velocity = normalize(b.velocity) * MAX_SPEED;
-				b.position += b.velocity;
+		for (int i = 0; i < nrBoids; i++)
+		{
+			// Calculate new velocities for each boid, update pos given velocity
+			Boid& b = boids[i];
+			b.velocity += getSteering(b);
+			b.velocity = normalize(b.velocity) * 0.001f;
+			b.position += b.velocity;
 
-				// create model matrix from agent position
-				glm::mat4 model = glm::mat4(1.0f);
-				model = glm::translate(model, b.position);
-				glm::vec3 v = glm::vec3(b.velocity.z, 0, -b.velocity.x);
-				float angle = acos(b.velocity.y / glm::length(b.velocity));
-				model = glm::rotate(model, angle, v);
-				// calculate transformed points of pyramid
-				glm::vec3 v0 = view * model * glm::vec4(p0, 1.0f);
-				glm::vec3 v1 = view * model * glm::vec4(p1, 1.0f);
-				glm::vec3 v2 = view * model * glm::vec4(p2, 1.0f);
-				glm::vec3 v3 = view * model * glm::vec4(p3, 1.0f);
-				// calculate normals for each triangle
-				glm::vec3 n0 = glm::cross(v2 - v0, v1 - v0);
-				glm::vec3 n1 = glm::cross(v0 - v3, v1 - v3);
-				glm::vec3 n2 = glm::cross(v3 - v2, v1 - v2);
-				glm::vec3 n3 = glm::cross(v3 - v0, v2 - v0);
+			// create model matrix from agent position
+			glm::mat4 model = glm::mat4(1.0f);
+			model = glm::translate(model, b.position);
+			glm::vec3 v = glm::vec3(b.velocity.z, 0, -b.velocity.x);
+			float angle = acos(b.velocity.y / glm::length(b.velocity));
+			model = glm::rotate(model, angle, v);
 
-				// transform each vertex and add them to array
-				renderBoids[i * 24 + 0] = v0;
-				renderBoids[i * 24 + 1] = n0;
-				renderBoids[i * 24 + 2] = v1;
-				renderBoids[i * 24 + 3] = n0;
-				renderBoids[i * 24 + 4] = v2;
-				renderBoids[i * 24 + 5] = n0;
+			shader.setMatrix("mv", view * model);
+			// calculate transformed points of pyramid
+			glm::vec3 v0 = glm::vec4(p0, 1.0f);
+			glm::vec3 v1 = glm::vec4(p1, 1.0f);
+			glm::vec3 v2 = glm::vec4(p2, 1.0f);
+			glm::vec3 v3 = glm::vec4(p3, 1.0f);
+			// calculate normals for each triangle
+			glm::vec3 n0 = glm::cross(v2 - v0, v1 - v0);
+			glm::vec3 n1 = glm::cross(v0 - v3, v1 - v3);
+			glm::vec3 n2 = glm::cross(v3 - v2, v1 - v2);
+			glm::vec3 n3 = glm::cross(v3 - v0, v2 - v0);
 
-				renderBoids[i * 24 + 6] = v0;
-				renderBoids[i * 24 + 7] = n1;
-				renderBoids[i * 24 + 8] = v3;
-				renderBoids[i * 24 + 9] = n1;
-				renderBoids[i * 24 + 10] = v1;
-				renderBoids[i * 24 + 11] = n1;
+			// transform each vertex and add them to array
+			renderBoids[i * 24 + 0] = v0;
+			renderBoids[i * 24 + 1] = n0;
+			renderBoids[i * 24 + 2] = v1;
+			renderBoids[i * 24 + 3] = n0;
+			renderBoids[i * 24 + 4] = v2;
+			renderBoids[i * 24 + 5] = n0;
 
-				renderBoids[i * 24 + 12] = v1;
-				renderBoids[i * 24 + 13] = n2;
-				renderBoids[i * 24 + 14] = v3;
-				renderBoids[i * 24 + 15] = n2;
-				renderBoids[i * 24 + 16] = v2;
-				renderBoids[i * 24 + 17] = n2;
+			renderBoids[i * 24 + 6] = v0;
+			renderBoids[i * 24 + 7] = n1;
+			renderBoids[i * 24 + 8] = v3;
+			renderBoids[i * 24 + 9] = n1;
+			renderBoids[i * 24 + 10] = v1;
+			renderBoids[i * 24 + 11] = n1;
 
-				renderBoids[i * 24 + 18] = v0;
-				renderBoids[i * 24 + 19] = n3;
-				renderBoids[i * 24 + 20] = v2;
-				renderBoids[i * 24 + 21] = n3;
-				renderBoids[i * 24 + 22] = v3;
-				renderBoids[i * 24 + 23] = n3;
-			}
-		});
+			renderBoids[i * 24 + 12] = v1;
+			renderBoids[i * 24 + 13] = n2;
+			renderBoids[i * 24 + 14] = v3;
+			renderBoids[i * 24 + 15] = n2;
+			renderBoids[i * 24 + 16] = v2;
+			renderBoids[i * 24 + 17] = n2;
+
+			renderBoids[i * 24 + 18] = v0;
+			renderBoids[i * 24 + 19] = n3;
+			renderBoids[i * 24 + 20] = v2;
+			renderBoids[i * 24 + 21] = n3;
+			renderBoids[i * 24 + 22] = v3;
+			renderBoids[i * 24 + 23] = n3;
+		};
 
 		clearHashTable();
 		// draw boids

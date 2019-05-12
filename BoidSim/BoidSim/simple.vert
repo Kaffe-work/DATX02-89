@@ -4,6 +4,7 @@ layout(location = 1) in vec3 aNormal;
 
 out vec4 ourColor;
 
+uniform mat4 mv;
 uniform mat4 projection;
 uniform vec3 color;
 uniform vec3 lightColor;
@@ -12,7 +13,7 @@ uniform vec3 lightPos;
 void main()
 {
 	// ambient
-	vec3 ambient = 0.1 * lightColor;
+	vec3 ambient = 0.2 * lightColor;
 
 	// diffuse 
     vec3 norm = normalize(aNormal);
@@ -24,5 +25,5 @@ void main()
 
 	ourColor = vec4(result, 1.0);
 
-	gl_Position = projection * vec4(aPos, 1.0);
+	gl_Position = projection * mv * vec4(aPos, 1.0);
 }
