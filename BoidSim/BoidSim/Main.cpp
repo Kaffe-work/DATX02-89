@@ -13,14 +13,14 @@
 #include <random>
 
 // Enable timing
-#define TIMING
-#define FRAMES_MEASURED 50
+//#define TIMING
+// #define FRAMES_MEASURED 50
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 double xpos, ypos; // cursor position
 
-int nrPredators = 0;
+
 
 // setup
 const unsigned int screenWidth = 1280, screenHeight = 720;
@@ -31,6 +31,7 @@ double yaw = 1.6f, pitch = 0.0f;
 
 // How many boids on screen
 const int nrBoids = NR_BOIDS;
+const int nrPredators = 100;
 Boid* boids;
 
 
@@ -98,8 +99,8 @@ int main()
 
 
 	std::random_device rd;
-	std::uniform_int_distribution<long> dist(15., 685.);
-	std::uniform_int_distribution<long> dist2(-13., 13.);
+	std::uniform_real_distribution<double> dist(CELL_SIZE + 1.f, MAX_COORD - CELL_SIZE);
+	std::uniform_real_distribution<double> dist2(-MAX_SPEED, MAX_SPEED);
 	//Create prey and predators
 	for (int i = 0; i < nrBoids; i++) {
 		srand(i);
@@ -155,7 +156,7 @@ int main()
     while (!glfwWindowShouldClose(window))
     {
         // print performance to console
-        printPerformance();
+        // printPerformance();
         // if got input, processed here
         processInput(window);
 
