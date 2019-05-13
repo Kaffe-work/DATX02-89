@@ -17,7 +17,12 @@
 // #define FRAMES_MEASURED 50
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void processInput(GLFWwindow *window);
+
+GLFWwindow* window;
+
+
 double xpos, ypos; // cursor position
 
 
@@ -25,15 +30,30 @@ double xpos, ypos; // cursor position
 // setup
 const unsigned int screenWidth = 1280, screenHeight = 720;
 
-glm::vec3 cameraDir(1.0f, 1.0f, 200.0f);
-glm::vec3 cameraPos(1.0f, 1.0f, -200.0f);
-double yaw = 1.6f, pitch = 0.0f;
+// Camera variables
+glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraDir = glm::vec3(0.0f, 0.0f, 2.0f);
+glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+bool firstMouse = true;
+float yaw = -90.0f;	// yaw is initialized to -90.0 degrees since a yaw of 0.0 results in a direction vector pointing to the right so we initially rotate a bit to the left.
+float pitch = 0.0f;
+float lastX = 800.0f / 2.0;
+float lastY = 600.0 / 2.0;
+float fov = 45.0f;
+
+// timing
+float deltaTime = 0.0f;	// time between current frame and last frame
+float lastFrame = 0.0f;
 
 // How many boids on screen
 const int nrBoids = NR_BOIDS;
 const int nrPredators = 100;
 Boid* boids;
 
+// lighting
+glm::vec3 lightPos(1.0f, 100.0f, -100.0f);
+glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
 
 // Time, used to print performance
 double lastTime = glfwGetTime();
@@ -61,6 +81,38 @@ glm::vec3 getRandomVectorWithChance(int percentage) {
 
 int frames = 0;
 
+int initGLFW()
+{
+	// glfw: initialize and configure
+	glfwInit();
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Needed for OS X, and possibly Linux
+
+														 // glfw: window creation
+	window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", NULL/*glfwGetPrimaryMonitor()*/, NULL);
+	if (window == NULL)
+	{
+		std::cout << "Failed to create GLFW window" << std::endl;
+		glfwTerminate();
+		return -1;
+	}
+	glfwMakeContextCurrent(window);
+	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+	glfwSetCursorPosCallback(window, mouse_callback);
+
+	// GLFW catches the cursor
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+	// glad: load all OpenGL function pointers
+	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+	{
+		std::cout << "Failed to initialize GLAD" << std::endl;
+		return -1;
+	}
+}
+
 int main()
 {
 
@@ -69,29 +121,7 @@ int main()
 
     boids = *(initBoidsOnGPU(boids));
     // glfw: initialize and configure
-    glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Needed for OS X, and possibly Linux
-
-    // glfw: window creation
-    GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", NULL, NULL);
-    if (window == NULL)
-    {
-        std::cout << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-    glfwMakeContextCurrent(window);
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-
-    // glad: load all OpenGL function pointers
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-    {
-        std::cout << "Failed to initialize GLAD" << std::endl;
-        return -1;
-    }
+	initGLFW();
 
     // build and compile shader program
     Shader shader("vert.shader", "frag.shader");
@@ -118,12 +148,6 @@ int main()
 		boids[i].status |= PREDATOR_FLAG;
 	}
 
-
-    // one vector for each vertex
-    glm::vec3 p1(-1.0f, -1.0f, 0.0f);
-    glm::vec3 p2(0.0f, 1.0f, 0.0f);
-    glm::vec3 p3(1.0f, -1.0f, 0.0f);
-
     unsigned int VAO;
     GLuint positionsVBO;
     glGenVertexArrays(1, &VAO); // is this needed?
@@ -135,7 +159,7 @@ int main()
     // Create buffer object and register it with CUDA
     glGenBuffers(1, &positionsVBO);
     glBindBuffer(GL_ARRAY_BUFFER, positionsVBO);
-    unsigned int size = nrBoids * 3 * sizeof(glm::vec3);
+    unsigned int size = nrBoids * sizeof(glm::vec3) * 36;
     glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     cudaGraphicsGLRegisterBufferWrapper(&positionsVBO_CUDA, positionsVBO);
@@ -149,25 +173,33 @@ int main()
     projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 1000.0f);
     // set projection matrix as uniform (attach to bound shader)
     shader.setMatrix("projection", projection);
+	// For lightning
+	shader.setVec3("lightColor", lightColor);
+	shader.setVec3("lightPos", lightPos);
 
+	// Enable z-test 
+	glEnable(GL_DEPTH_TEST);
 
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window))
     {
+		float currentFrame = glfwGetTime();
+		deltaTime = currentFrame - lastFrame;
+		lastFrame = currentFrame;
         // print performance to console
         // printPerformance();
         // if got input, processed here
         processInput(window);
 
         // update camera direction, rotation
-        cameraDir = glm::vec3(cos(pitch)*cos(yaw), sin(-pitch), cos(pitch)*sin(yaw));
-        normalize(cameraDir);
-        // calculate view-matrix based on cameraDir and cameraPos
-        view = glm::lookAt(cameraPos, cameraPos + cameraDir, glm::vec3(0.0f, 1.0f, 0.0f));
+		projection = glm::perspective(glm::radians(fov), (float)screenWidth / screenHeight, 0.1f, 1000.0f);
+		shader.setMatrix("projection", projection);
+		// set view matrix
+		view = glm::lookAt(cameraPos, cameraPos + cameraDir, cameraUp);
         // clear whatever was on screen last frame
-
-        glClearColor(0.90f, 0.95f, 0.96f, 1.0f);
+		glm::vec3 bgColor(5.f/255.f, 30.f/255.f, 62.f/255.f);
+        glClearColor(bgColor.x, bgColor.y, bgColor.z, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
 
@@ -200,12 +232,28 @@ int main()
         glBindVertexArray(VAO);
         glBindBuffer(GL_ARRAY_BUFFER, positionsVBO);
 
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
 
-        // Draw 3 * nrBoids vertices
-        glDrawArrays(GL_TRIANGLES, 0, nrBoids * 3);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(3 * sizeof(float)));
+		glEnableVertexAttribArray(1);
 
+		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(6 * sizeof(float)));
+		glEnableVertexAttribArray(2);
+
+        // Draw 3 * nrBoids vertices
+		shader.setVec3("color", glm::vec3(1.0f, 1.0f, 1.0f));
+		shader.setVec3("bgColor", bgColor);
+		shader.setVec3("cameraPos", cameraPos);
+        glDrawArrays(GL_TRIANGLES, 0, nrBoids * 24);
+
+		// enable for wireframe
+		/*
+		shader.setVec3("color", glm::vec3(0.0f));
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glDrawArrays(GL_TRIANGLES, 0, nrBoids * 24);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		*/
         // unbind buffer and vertex array
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
@@ -225,6 +273,7 @@ int main()
     glDeleteBuffers(1, &positionsVBO);
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
+    // glfw: terminate, clearing all previously allocated GLFW resour
     glfwTerminate();
     deinitBoidsOnGPU();
 #ifdef TIMING
@@ -237,40 +286,54 @@ int main()
 }
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
-void processInput(GLFWwindow *window)
+void processInput(GLFWwindow* window)
 {
-    double xpos_old = xpos;
-    double ypos_old = ypos;
-    glfwGetCursorPos(window, &xpos, &ypos);
-    double deltaX = xpos - xpos_old;
-    double deltaY = ypos - ypos_old;
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+		glfwSetWindowShouldClose(window, true);
 
-    // If left mouse click is depressed, modify yaw and pitch
-    int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-    if (state == GLFW_PRESS) {
-        yaw += deltaX * 0.002;
-        pitch = fmin(pitch + deltaY * 0.002, 0.3f); // max 89 grader
-    }
+	float cameraSpeed = 100 * deltaTime;
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+		cameraPos += cameraSpeed * cameraDir;
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+		cameraPos -= cameraSpeed * cameraDir;
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+		cameraPos -= glm::normalize(glm::cross(cameraDir, cameraUp)) * cameraSpeed;
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+		cameraPos += glm::normalize(glm::cross(cameraDir, cameraUp)) * cameraSpeed;
+}
 
-    state = glfwGetKey(window, GLFW_KEY_W);
-    if (state == GLFW_PRESS) {
-        cameraPos += cameraDir * 3.0f;
-    }
-    state = glfwGetKey(window, GLFW_KEY_S);
-    if (state == GLFW_PRESS) {
-        cameraPos -= cameraDir * 3.0f;
-    }
-    state = glfwGetKey(window, GLFW_KEY_A);
-    if (state == GLFW_PRESS) {
-        cameraPos -= cross(cameraDir, glm::vec3(0.0f, 1.0f, 0.0f)) * 3.0f;
-    }
-    state = glfwGetKey(window, GLFW_KEY_D);
-    if (state == GLFW_PRESS) {
-        cameraPos += cross(cameraDir, glm::vec3(0.0f, 1.0f, 0.0f)) * 3.0f;
-    }
+void mouse_callback(GLFWwindow* window, double xpos, double ypos)
+{
+	if (firstMouse)
+	{
+		lastX = xpos;
+		lastY = ypos;
+		firstMouse = false;
+	}
 
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
+	float xoffset = xpos - lastX;
+	float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
+	lastX = xpos;
+	lastY = ypos;
+
+	float sensitivity = 0.1f; // change this value to your liking
+	xoffset *= sensitivity;
+	yoffset *= sensitivity;
+
+	yaw += xoffset;
+	pitch += yoffset;
+
+	// make sure that when pitch is out of bounds, screen doesn't get flipped
+	if (pitch > 89.0f)
+		pitch = 89.0f;
+	if (pitch < -89.0f)
+		pitch = -89.0f;
+
+	glm::vec3 front;
+	front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+	front.y = sin(glm::radians(pitch));
+	front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+	cameraDir = glm::normalize(front);
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
