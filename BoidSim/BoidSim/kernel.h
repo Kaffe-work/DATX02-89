@@ -22,7 +22,6 @@
 #define COHESION_FACTOR 0.1f // but this looks better
 
 #define AVOID_FACTOR 2.0f
-// #define AVOID_DISTANCE 20.0f
 #define PRED_ATTRACT_FACTOR 2.0f
 
 #define MIN_SPEED 0.2f

@@ -52,8 +52,8 @@ const int nrPredators = 100;
 Boid* boids;
 
 // lighting
-glm::vec3 lightPos(1.0f, 100.0f, -100.0f);
-glm::vec3 lightColor(1.0f, 1.0f, 1.0f);
+glm::vec3 lightPos(350.0f, 700.0f, 350.0f);
+glm::vec3 lightPos2(50.0f, 700.0f, 350.0f);
 
 // Time, used to print performance
 double lastTime = glfwGetTime();
@@ -127,6 +127,52 @@ int main()
     Shader shader("vert.shader", "frag.shader");
 	long rando = 1;
 
+	// build and compile shader program
+	Shader lampShader("lamp.vert", "lamp.frag");
+
+	float vertices[] = {
+		-0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+		0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+		0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+		0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+		-0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+		-0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
+
+		-0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
+		0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
+		0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
+		0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
+		-0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
+		-0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,
+
+		-0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
+		-0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
+		-0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
+		-0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
+		-0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
+		-0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
+
+		0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
+		0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
+		0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
+		0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
+		0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
+		0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
+
+		-0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
+		0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
+		0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
+		0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
+		-0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
+		-0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
+
+		-0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
+		0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
+		0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
+		0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
+		-0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
+		-0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f
+	};
 
 	std::random_device rd;
 	std::uniform_real_distribution<double> dist(CELL_SIZE + 1.f, MAX_COORD - CELL_SIZE);
@@ -174,8 +220,21 @@ int main()
     // set projection matrix as uniform (attach to bound shader)
     shader.setMatrix("projection", projection);
 	// For lightning
-	shader.setVec3("lightColor", lightColor);
 	shader.setVec3("lightPos", lightPos);
+	shader.setVec3("lightPos2", lightPos2);
+
+	// also draw the lamp object
+	lampShader.use();
+	lampShader.setMatrix("projection", projection);
+	unsigned int lightVAO, VBO2;
+	glGenVertexArrays(1, &lightVAO);
+	glGenBuffers(1, &VBO2);
+	glBindVertexArray(lightVAO);
+
+	glBindBuffer(GL_ARRAY_BUFFER, VBO2);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
 
 	// Enable z-test 
 	glEnable(GL_DEPTH_TEST);
@@ -194,9 +253,12 @@ int main()
 
         // update camera direction, rotation
 		projection = glm::perspective(glm::radians(fov), (float)screenWidth / screenHeight, 0.1f, 1000.0f);
+
+		shader.use();
 		shader.setMatrix("projection", projection);
 		// set view matrix
 		view = glm::lookAt(cameraPos, cameraPos + cameraDir, cameraUp);
+		shader.setMatrix("view", view);
         // clear whatever was on screen last frame
 		glm::vec3 bgColor(5.f/255.f, 30.f/255.f, 62.f/255.f);
         glClearColor(bgColor.x, bgColor.y, bgColor.z, 1.0f);
@@ -247,6 +309,21 @@ int main()
 		shader.setVec3("cameraPos", cameraPos);
         glDrawArrays(GL_TRIANGLES, 0, nrBoids * 24);
 
+
+		// Draw light source
+		lampShader.use();
+		lampShader.setMatrix("view", view);
+		glm::mat4 lightModel = glm::scale(glm::translate(glm::mat4(1.0f), lightPos), glm::vec3(20.f));
+		lampShader.setMatrix("model", lightModel);
+
+		glBindVertexArray(lightVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		glm::mat4 lightModel2 = glm::scale(glm::translate(glm::mat4(1.0f), lightPos2), glm::vec3(20.f));
+		lampShader.setMatrix("model", lightModel2);
+		glBindVertexArray(lightVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
 		// enable for wireframe
 		/*
 		shader.setVec3("color", glm::vec3(0.0f));
@@ -291,7 +368,7 @@ void processInput(GLFWwindow* window)
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
 
-	float cameraSpeed = 100 * deltaTime;
+	float cameraSpeed = 250 * deltaTime;
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 		cameraPos += cameraSpeed * cameraDir;
 	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
