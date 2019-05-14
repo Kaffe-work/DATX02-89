@@ -10,7 +10,8 @@
 #define BOID_SCOPE 10.f // this is how far boids look for neighbours. Should always be == CELL_SIZE ?
 
 // Boid attributes
-#define PLANE_SOFTNESS 0.5f
+#define PLANE_SOFTNESS 20.f
+#define PLANE_AVOID_DISTANCE 40.f
 #define DEATH_DISTANCE 3.5f
 #define MAX_ACCELERATION 0.07f
 #define MAX_ACCELERATION_PREDATOR 0.05f
@@ -20,7 +21,7 @@
 #define ALIGN_FACTOR 0.3f
 //#define COHESION_FACTOR 0.003f // this is the tested value
 #define COHESION_FACTOR 0.1f // but this looks better
-#define AVAILABLE_ACCELERATION 2.1f;
+#define AVAILABLE_ACCELERATION 1.8f;
 
 #define AVOID_FACTOR 2.0f
 #define PRED_ATTRACT_FACTOR 2.0f

@@ -287,8 +287,9 @@ __global__ void computeVelocities(Boid boids[], int cellStarts[], int cellEnds[]
 
 					// PREY BEHAVIOR ARBITRATE
 					if (validNeighbour > 0) {
-						separation -= bIsPrey * nIsPrey * BOID_SCOPE / distance;
-						avoidance -= nIsPredator * BOID_SCOPE / distance;
+						separation -= (bIsPrey * nIsPrey) * delta / (distance*distance);
+						// not sure about dividing with square root of distance...
+						avoidance -= (nIsPredator) * delta / sqrt(distance);
 					}
 
 					// Hunt 
@@ -307,9 +308,17 @@ __global__ void computeVelocities(Boid boids[], int cellStarts[], int cellEnds[]
 	glm::vec3 wallAvoidance = glm::vec3(0.f);
 	for (int m = 0; m < 6; m++) {
 		ObstaclePlane o = walls[m];
+
+		// Make a vector from plane orig point to the boid
 		glm::vec3 v = b.position - o.point;
-		float distance = PLANE_SOFTNESS / (glm::dot(v, o.normal) + epsilon) / glm::length(v) / 10.f;
-		wallAvoidance += o.normal / (length(o.normal) + epsilon) * distance - b.velocity;
+		// Take the dot product of that vector with the unit normal vector n
+		// inverse distance from plane
+		float dist = glm::dot(v, o.normal);
+		float inverse_dist = 1.f / dist;
+		// square the inverse (power law!)
+		inverse_dist *= inverse_dist;
+		// avoid wall if withing plane avoid distance
+		wallAvoidance += PLANE_SOFTNESS * inverse_dist * o.normal   * (float)(dist < PLANE_AVOID_DISTANCE);
 	}
 
 
@@ -317,17 +326,23 @@ __global__ void computeVelocities(Boid boids[], int cellStarts[], int cellEnds[]
 		avgPreyPos /= nrPrey;
 		avgPreyVel /= nrPrey;
 		separation /= nrPrey;
-		separation *= 0.1f;
-		cohesion += (avgPreyPos - b.position) * 0.1f;
+		cohesion += avgPreyPos - b.position;
 		alignment += avgPreyVel - b.velocity;
 		if (nrPredators > 0) {
-			avgPredatorPos /= nrPredators;
-			avoidance += (b.position - avgPredatorPos);
+			avgPredatorPos /= nrPredators; 
+			avoidance += b.position - avgPredatorPos;
 		}
 	}
 
 
 	float acc = AVAILABLE_ACCELERATION;
+
+	tapAcceleration(acc, wallAvoidance, newVel);
+	tapAcceleration(acc, avoidance*12.f, newVel);
+	tapAcceleration(acc, separation*8.f, newVel);
+	tapAcceleration(acc, cohesion*0.1f, newVel);
+	tapAcceleration(acc, alignment, newVel);
+
 
 	if (idx == 0) {
 		printf("wallAvoidance: %f\n", glm::length(wallAvoidance));
@@ -335,12 +350,6 @@ __global__ void computeVelocities(Boid boids[], int cellStarts[], int cellEnds[]
 		printf("cohesion: %f\n", glm::length(cohesion));
 		printf("alignment: %f\n", glm::length(alignment));
 	}
-
-	tapAcceleration(acc, wallAvoidance, newVel);
-	tapAcceleration(acc, separation, newVel);
-	tapAcceleration(acc, cohesion, newVel);
-	tapAcceleration(acc, alignment, newVel);
-
 
 	// Predator behavior
 	if (bIsPredator > 0) {
@@ -398,7 +407,7 @@ __global__ void computeVelocities(Boid boids[], int cellStarts[], int cellEnds[]
 	// Limit acceleration
 	glm::vec3 acceleration = newVel - oldVel;
 
-	float accelerationMag = glm::clamp(glm::length(acceleration), 0.f, MAX_ACCELERATION * (1 + 0.5f*(nrPredators > 0)*bIsPrey));
+	float accelerationMag = glm::clamp(glm::length(acceleration), 0.f, MAX_ACCELERATION * (1 + 0.7f*(nrPredators > 0)*bIsPrey));
 
 	if (accelerationMag > epsilon) {
 		newVel = oldVel + glm::normalize(acceleration)*accelerationMag;
@@ -715,14 +724,18 @@ __host__ Boid** initBoidsOnGPU(Boid* boidsArr) {
 
 	float max = MAX_COORD;
 	float min = 0;
-	walls[0] = ObstaclePlane(min, 0, 0, -1, 0, 0);
-	walls[1] = ObstaclePlane(max, 0, 0, 1, 0, 0);
-
-	walls[2] = ObstaclePlane(0, min, 0, 0, -1, 0);
-	walls[3] = ObstaclePlane(0, max, 0, 0, 1, 0);
-
-	walls[4] = ObstaclePlane(0, 0, min, 0, 0, -1);
-	walls[5] = ObstaclePlane(0, 0, max, 0, 0, 1);
+	// höger vägg
+	walls[0] = ObstaclePlane(max, max/2.f, max / 2.f, -1, 0, 0);
+	// vänster vägg
+	walls[1] = ObstaclePlane(min, max / 2.f, max / 2.f, 1, 0, 0);
+	// tak
+	walls[2] = ObstaclePlane(max / 2.f, max, max / 2.f, 0, -1, 0);
+	// golv
+	walls[3] = ObstaclePlane(max / 2.f, min, max / 2.f, 0, 1, 0);
+	// vägg framför
+	walls[4] = ObstaclePlane(max / 2.f, max / 2.f, max, 0, 0, -1);
+	// vägg bakom
+	walls[5] = ObstaclePlane(max / 2.f, max / 2.f, min, 0, 0, 1);
 
 
 

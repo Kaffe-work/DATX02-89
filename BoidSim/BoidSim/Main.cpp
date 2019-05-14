@@ -48,7 +48,7 @@ float lastFrame = 0.0f;
 
 // How many boids on screen
 const int nrBoids = NR_BOIDS;
-const int nrPredators = 100;
+const int nrPredators = 500;
 Boid* boids;
 
 // lighting
@@ -247,7 +247,7 @@ int main()
     // Create buffer object and register it with CUDA
     glGenBuffers(1, &positionsVBO);
     glBindBuffer(GL_ARRAY_BUFFER, positionsVBO);
-    unsigned int size = nrBoids * sizeof(glm::vec3) * 36;
+    unsigned int size = nrBoids * sizeof(glm::vec3) * 54;
     glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     cudaGraphicsGLRegisterBufferWrapper(&positionsVBO_CUDA, positionsVBO);
