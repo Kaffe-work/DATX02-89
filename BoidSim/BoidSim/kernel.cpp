@@ -344,13 +344,6 @@ __global__ void computeVelocities(Boid boids[], int cellStarts[], int cellEnds[]
 	tapAcceleration(acc, alignment, newVel);
 
 
-	if (idx == 0) {
-		printf("wallAvoidance: %f\n", glm::length(wallAvoidance));
-		printf("separation: %f\n", glm::length(separation));
-		printf("cohesion: %f\n", glm::length(cohesion));
-		printf("alignment: %f\n", glm::length(alignment));
-	}
-
 	// Predator behavior
 	if (bIsPredator > 0) {
 		if (preyFound) {
