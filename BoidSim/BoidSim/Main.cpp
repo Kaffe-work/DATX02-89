@@ -130,7 +130,7 @@ int initGLFW()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Needed for OS X, and possibly Linux
-	glfwWindowHint(GLFW_SAMPLES, 4); // smoothen edges
+	glfwWindowHint(GLFW_SAMPLES, 8); // smoothen edges
 
 														 // glfw: window creation
 	window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", glfwGetPrimaryMonitor(), NULL);
