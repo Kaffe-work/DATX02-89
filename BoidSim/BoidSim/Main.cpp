@@ -19,16 +19,16 @@
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void processInput(GLFWwindow *window);
+std::string random_string(size_t length);
 
 GLFWwindow* window;
 
 
 double xpos, ypos; // cursor position
 
-
-
 // setup
-const unsigned int screenWidth = 1280, screenHeight = 720;
+const unsigned int screenWidth = 1920, screenHeight = 1080;
+int printscreenNr = 0;
 
 // Camera variables
 glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
@@ -58,6 +58,47 @@ glm::vec3 lightPos2(50.0f, 700.0f, 350.0f);
 // Time, used to print performance
 double lastTime = glfwGetTime();
 int nrFrames = 0;
+
+
+// for printscreens
+bool printscreen(std::string filename, int w, int h)
+{
+	//This prevents the images getting padded 
+   // when the width multiplied by 3 is not a multiple of 4
+	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+
+	int nSize = w * h * 3;
+	// First let's create our buffer, 3 channels per Pixel
+	char* dataBuffer = (char*)malloc(nSize * sizeof(char));
+
+	if (!dataBuffer) return false;
+
+	// Let's fetch them from the backbuffer	
+	// We request the pixels in GL_BGR format, thanks to Berzeger for the tip
+	glReadPixels((GLint)0, (GLint)0,
+		(GLint)w, (GLint)h,
+		GL_BGR, GL_UNSIGNED_BYTE, dataBuffer);
+
+	//Now the file creation
+	FILE* filePtr = fopen(filename.c_str(), "wb");
+	if (!filePtr) return false;
+
+
+	unsigned char TGAheader[12] = { 0,0,2,0,0,0,0,0,0,0,0,0 };
+	unsigned char header[6] = { w % 256,w / 256,
+					h % 256,h / 256,
+					24,0 };
+	// We write the headers
+	fwrite(TGAheader, sizeof(unsigned char), 12, filePtr);
+	fwrite(header, sizeof(unsigned char), 6, filePtr);
+	// And finally our image data
+	fwrite(dataBuffer, sizeof(GLubyte), nSize, filePtr);
+	fclose(filePtr);
+
+	free(dataBuffer);
+
+	return true;
+}
 
 // Reference: http://www.opengl-tutorial.org/miscellaneous/an-fps-counter/
 void printPerformance() {
@@ -89,9 +130,10 @@ int initGLFW()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Needed for OS X, and possibly Linux
+	glfwWindowHint(GLFW_SAMPLES, 4); // smoothen edges
 
 														 // glfw: window creation
-	window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", NULL/*glfwGetPrimaryMonitor()*/, NULL);
+	window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", glfwGetPrimaryMonitor(), NULL);
 	if (window == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
@@ -238,6 +280,7 @@ int main()
 
 	// Enable z-test 
 	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_MULTISAMPLE); // smoother edges
 
     // render loop
     // -----------
@@ -377,6 +420,8 @@ void processInput(GLFWwindow* window)
 		cameraPos -= glm::normalize(glm::cross(cameraDir, cameraUp)) * cameraSpeed;
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		cameraPos += glm::normalize(glm::cross(cameraDir, cameraUp)) * cameraSpeed;
+	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
+		printscreen("screens/" + std::to_string(printscreenNr++) + ".tga", screenWidth, screenHeight);
 }
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos)

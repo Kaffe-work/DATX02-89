@@ -20,7 +20,7 @@ void main()
 	gl_Position = projection * vec4(aPos, 1.0);
 
 	float a = length(aPos);
-	float ratio = sqrt(a / 1000.0);
+	float ratio = sqrt(a / 4000.0);
 	//float ratio = 0;
 	ourColor = max(aColor *(1 - ratio) + bgColor*ratio, bgColor);
 	FragPos = mat3(transpose(inverse(view))) * aPos;
