@@ -582,7 +582,7 @@ __global__ void rearrangeBoids(int boidIDs[], Boid boids[], Boid boidsAlt[], int
 
 __global__ void prepareBoidRenderKernel(Boid* boids, glm::vec3* renderBoids, glm::mat4 projection, glm::mat4 view) {
 	int i = threadIdx.x + (blockIdx.x * blockDim.x);
-	int j = i * 36;
+	int j = i * 54;
 	if (i >= NR_BOIDS) return;
 	Boid b = boids[i];
 
@@ -593,6 +593,8 @@ __global__ void prepareBoidRenderKernel(Boid* boids, glm::vec3* renderBoids, glm
 	glm::vec3 p0(-1.0f, -1.0f, 0.0f);
 	glm::vec3 p2(1.0f, -1.0f, 0.0f);
 	glm::vec3 p3(0.0f, -1.0f, -0.73205080757f);
+
+	glm::vec3 p4(0.0f, -1.0f, -0.33205080757f); // Last point is less away than back point p3
 
 	// dirty quickfix
 	glm::vec3 color(198.f / 255.f, 231.f / 255.f, 1.0f);
@@ -611,14 +613,16 @@ __global__ void prepareBoidRenderKernel(Boid* boids, glm::vec3* renderBoids, glm
 	glm::vec3 v1 = view * model * glm::vec4(p1, 1.0f);
 	glm::vec3 v2 = view * model * glm::vec4(p2, 1.0f);
 	glm::vec3 v3 = view * model * glm::vec4(p3, 1.0f);
+	glm::vec3 v4 = view * model * glm::vec4(p4, 1.0f);
 
-	glm::vec3 n0 = glm::mat3(glm::transpose(glm::inverse(model))) * glm::cross(p2 - p0, p1 - p0);
-	glm::vec3 n1 = glm::mat3(glm::transpose(glm::inverse(model))) * glm::cross(p0 - p3, p1 - p3);
-	glm::vec3 n2 = glm::mat3(glm::transpose(glm::inverse(model))) * glm::cross(p3 - p2, p1 - p2);
-	glm::vec3 n3 = glm::mat3(glm::transpose(glm::inverse(model))) * glm::cross(p3 - p0, p2 - p0);
+	glm::vec3 n0 = glm::mat3(glm::transpose(glm::inverse(model))) * glm::cross(p2 - p0, p1 - p0); // vänster vinge upp
+	glm::vec3 n1 = glm::mat3(glm::transpose(glm::inverse(model))) * glm::cross(p1 - p0, p4 - p0); // vänster vinge ner 
+	glm::vec3 n2 = glm::mat3(glm::transpose(glm::inverse(model))) * glm::cross(p3 - p2, p1 - p2); // höger vinge upp
+	glm::vec3 n3 = glm::mat3(glm::transpose(glm::inverse(model))) * glm::cross(p1 - p4, p3 - p4); // höger vinge ner
+	glm::vec3 n4 = glm::mat3(glm::transpose(glm::inverse(model))) * glm::cross(p4 - p0, p2 - p0); // vänster skinka
+	glm::vec3 n5 = glm::mat3(glm::transpose(glm::inverse(model))) * glm::cross(p2 - p3, p4 - p3); // höger skinka
 
-
-	// transform each vertex and add them to array
+	// vänster vinge upp
 	renderBoids[j + 0] = v0;
 	renderBoids[j + 1] = color;
 	renderBoids[j + 2] = n0;
@@ -629,16 +633,18 @@ __global__ void prepareBoidRenderKernel(Boid* boids, glm::vec3* renderBoids, glm
 	renderBoids[j + 7] = color;
 	renderBoids[j + 8] = n0;
 
+	// vänster vinge ner
 	renderBoids[j + 9] = v0;
 	renderBoids[j + 10] = color;
 	renderBoids[j + 11] = n1;
-	renderBoids[j + 12] = v3;
+	renderBoids[j + 12] = v4;
 	renderBoids[j + 13] = color;
 	renderBoids[j + 14] = n1;
 	renderBoids[j + 15] = v1;
 	renderBoids[j + 16] = color;
 	renderBoids[j + 17] = n1;
 
+	// höger vinge upp
 	renderBoids[j + 18] = v1;
 	renderBoids[j + 19] = color;
 	renderBoids[j + 20] = n2;
@@ -649,15 +655,38 @@ __global__ void prepareBoidRenderKernel(Boid* boids, glm::vec3* renderBoids, glm
 	renderBoids[j + 25] = color;
 	renderBoids[j + 26] = n2;
 
-	renderBoids[j + 27] = v0;
+	// höger vinge ner
+	renderBoids[j + 27] = v1;
 	renderBoids[j + 28] = color;
 	renderBoids[j + 29] = n3;
-	renderBoids[j + 30] = v2;
+	renderBoids[j + 30] = v4;
 	renderBoids[j + 31] = color;
 	renderBoids[j + 32] = n3;
 	renderBoids[j + 33] = v3;
 	renderBoids[j + 34] = color;
 	renderBoids[j + 35] = n3;
+
+	// vänster skinka
+	renderBoids[j + 36] = v3;
+	renderBoids[j + 37] = color;
+	renderBoids[j + 38] = n4;
+	renderBoids[j + 39] = v4;
+	renderBoids[j + 40] = color;
+	renderBoids[j + 41] = n4;
+	renderBoids[j + 42] = v2;
+	renderBoids[j + 43] = color;
+	renderBoids[j + 44] = n4;
+
+	// höger skinka
+	renderBoids[j + 45] = v2;
+	renderBoids[j + 46] = color;
+	renderBoids[j + 47] = n5;
+	renderBoids[j + 48] = v4;
+	renderBoids[j + 49] = color;
+	renderBoids[j + 50] = n5;
+	renderBoids[j + 51] = v0;
+	renderBoids[j + 52] = color;
+	renderBoids[j + 53] = n5;
 }
 
 void prepareBoidRender(Boid* boids, glm::vec3* renderBoids, glm::mat4 projection, glm::mat4 view) {
