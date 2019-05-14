@@ -20,6 +20,7 @@
 #define ALIGN_FACTOR 0.3f
 //#define COHESION_FACTOR 0.003f // this is the tested value
 #define COHESION_FACTOR 0.1f // but this looks better
+#define AVAILABLE_ACCELERATION 2.1f;
 
 #define AVOID_FACTOR 2.0f
 #define PRED_ATTRACT_FACTOR 2.0f
