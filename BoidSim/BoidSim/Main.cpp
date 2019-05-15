@@ -133,7 +133,7 @@ int initGLFW()
 	glfwWindowHint(GLFW_SAMPLES, 8); // smoothen edges
 
 														 // glfw: window creation
-	window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", glfwGetPrimaryMonitor(), NULL);
+	window = glfwCreateWindow(screenWidth, screenHeight, "BoidSim", NULL /*glfwGetPrimaryMonitor()*/, NULL);
 	if (window == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
