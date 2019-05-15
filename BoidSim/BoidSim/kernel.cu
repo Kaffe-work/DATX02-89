@@ -117,6 +117,9 @@ int blockSize = 256;
 int numBlocksBoids = (NR_BOIDS + blockSize - 1) / blockSize;
 int numBlocksCells = (NR_CELLS + blockSize - 1) / blockSize;
 
+// Time variable
+__device__ float t = 0.0f;
+
 // A tempory storage for new velocities allows parallel processing of the boids velocities 
 glm::vec3* newVelocities;
 
@@ -414,7 +417,7 @@ __global__ void computeVelocities(Boid boids[], int cellStarts[], int cellEnds[]
 	}
 
 	// Update position 
-	glm::vec3 newPos = b.position + newVel;
+	glm::vec3 newPos = b.position + newVel;//
 
 	// TODO: Right now we wrap the boids around a cube
 	// TODO: This is just a quickfix. Just assigning MAX_COORD is not exactly accurate
@@ -588,21 +591,22 @@ __global__ void prepareBoidRenderKernel(Boid* boids, glm::vec3* renderBoids, glm
 	if (i >= NR_BOIDS) return;
 	Boid b = boids[i];
 
+	// float wingHeight = cosf(t + length(b.velocity));
+	float wingHeight = cosf(t + glm::length(b.velocity)) + 0.6f;
+
+
 	// one vector for each vertex
 
-	glm::vec3 p1(0.0f, 1.5f, 1.73205080757f / 3);
+	glm::vec3 p1(0.0f, 1.5f, -1.73205080757f);
 
-	glm::vec3 p0(-1.0f, -1.0f, 0.0f);
-	glm::vec3 p2(1.0f, -1.0f, 0.0f);
-	glm::vec3 p3(0.0f, -1.0f, -0.73205080757f);
+	glm::vec3 p0(-1.0f, -1.0f, wingHeight);
+	glm::vec3 p2(0.0f, -1.0f, -1.73205080757f);
+	glm::vec3 p3(1.0f, -1.0f, wingHeight);
 
-	glm::vec3 p4(0.0f, -1.0f, -0.33205080757f); // Last point is less away than back point p3
+	glm::vec3 p4(0.0f, -1.0f, -1.33205080757f); // Last point is less away than back point p3
 
 	// dirty quickfix
 	glm::vec3 color(198.f / 255.f, 231.f / 255.f, 1.0f);
-	if (b.status & PREDATOR_FLAG) {
-		color = glm::vec3(133.f / 255.f, 30.f / 255.f, 62.f / 255.f);
-	}
 
 	// create model matrix from agent position
 	glm::mat4 model = glm::mat4(1.0f);
@@ -610,6 +614,11 @@ __global__ void prepareBoidRenderKernel(Boid* boids, glm::vec3* renderBoids, glm
 	glm::vec3 v = glm::vec3(b.velocity.z, 0, -b.velocity.x);
 	float angle = acosf(b.velocity.y / glm::length(b.velocity)); // acosf is single precision == faster
 	model = glm::rotate(model, angle, v);
+
+	if (b.status & PREDATOR_FLAG) {
+		color = glm::vec3(133.f / 255.f, 30.f / 255.f, 62.f / 255.f);
+		model = glm::scale(model, glm::vec3(3.0f));
+	}
 
 	glm::vec3 v0 = view * model * glm::vec4(p0, 1.0f);
 	glm::vec3 v1 = view * model * glm::vec4(p1, 1.0f);
@@ -623,6 +632,12 @@ __global__ void prepareBoidRenderKernel(Boid* boids, glm::vec3* renderBoids, glm
 	glm::vec3 n3 = glm::mat3(glm::transpose(glm::inverse(model))) * glm::cross(p1 - p4, p3 - p4); // höger vinge ner
 	glm::vec3 n4 = glm::mat3(glm::transpose(glm::inverse(model))) * glm::cross(p4 - p0, p2 - p0); // vänster skinka
 	glm::vec3 n5 = glm::mat3(glm::transpose(glm::inverse(model))) * glm::cross(p2 - p3, p4 - p3); // höger skinka
+
+	glm::vec3 red(1.0f, 0.0f, 0.0f);
+	glm::vec3 green(0.0f, 1.0f, 0.0f);
+	glm::vec3 blue(0.0f, 0.0f, 1.0f);
+	glm::vec3 white(1.0f, 1.0f, 1.0f);
+	glm::vec3 black(0.0f, 0.0f, 0.0f);
 
 	// vänster vinge upp
 	renderBoids[j + 0] = v0;
@@ -806,7 +821,8 @@ void cudaSetDeviceWrapper(int n) {
 }
 
 void step() {
-
+	
+	t += 1.0f;
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);

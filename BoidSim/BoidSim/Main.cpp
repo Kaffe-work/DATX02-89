@@ -411,7 +411,7 @@ void processInput(GLFWwindow* window)
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
 
-	float cameraSpeed = 250 * deltaTime;
+	float cameraSpeed = 150 * deltaTime;
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 		cameraPos += cameraSpeed * cameraDir;
 	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
