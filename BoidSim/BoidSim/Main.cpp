@@ -35,6 +35,8 @@ glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
 glm::vec3 cameraDir = glm::vec3(0.0f, 0.0f, 2.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
+bool isLaserActive = false;
+
 bool firstMouse = true;
 float yaw = -90.0f;	// yaw is initialized to -90.0 degrees since a yaw of 0.0 results in a direction vector pointing to the right so we initially rotate a bit to the left.
 float pitch = 0.0f;
@@ -48,7 +50,7 @@ float lastFrame = 0.0f;
 
 // How many boids on screen
 const int nrBoids = NR_BOIDS;
-const int nrPredators = 500;
+const int nrPredators = 10;
 Boid* boids;
 
 // lighting
@@ -258,7 +260,7 @@ int main()
     // instantiate transformation matrices
     glm::mat4 projection, view, model;
     // projection will always be the same: define FOV, aspect ratio and view frustum (near & far plane)
-    projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 1000.0f);
+    projection = glm::perspective(glm::radians(45.0f), (float)screenWidth / screenHeight, 0.1f, 2000.0f);
     // set projection matrix as uniform (attach to bound shader)
     shader.setMatrix("projection", projection);
 	// For lightning
@@ -360,12 +362,12 @@ int main()
 		lampShader.setMatrix("model", lightModel);
 
 		glBindVertexArray(lightVAO);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
+		// glDrawArrays(GL_TRIANGLES, 0, 36);
 
 		glm::mat4 lightModel2 = glm::scale(glm::translate(glm::mat4(1.0f), lightPos2), glm::vec3(20.f));
 		lampShader.setMatrix("model", lightModel2);
 		glBindVertexArray(lightVAO);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
+		// glDrawArrays(GL_TRIANGLES, 0, 36);
 
 		// enable for wireframe
 		/*
@@ -410,6 +412,10 @@ void processInput(GLFWwindow* window)
 {
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
+	
+	
+	isLaserActive = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+
 
 	float cameraSpeed = 150 * deltaTime;
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)

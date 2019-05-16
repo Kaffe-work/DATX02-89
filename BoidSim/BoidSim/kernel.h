@@ -3,7 +3,7 @@
 
 #include "boid.h"
 
-#define NR_BOIDS 100000
+#define NR_BOIDS 500000
 
 #define MAX_COORD 700.f // World boundaries, tested at 700.f
 #define CELL_SIZE 10.f // The world is divided in cubic cells  
